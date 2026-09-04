@@ -1,17 +1,34 @@
 // file_download_service.dart
-// Browser/device save abstraction used by all export buttons.
+//
+// Responsibility:
+// Provides one browser-download abstraction for generated PDF and XLSX bytes.
 
 import 'dart:typed_data';
 
-import 'package:flutter_file_saver/flutter_file_saver.dart';
+import 'package:file_saver/file_saver.dart';
 
 class FileDownloadService {
   const FileDownloadService();
 
-  Future<void> saveBytes({
-    required String fileName,
-    required Uint8List bytes,
-  }) async {
-    await FlutterFileSaver().writeFileAsBytes(fileName: fileName, bytes: bytes);
+  Future<void> savePdf(String baseName, Uint8List bytes) async {
+    await FileSaver.instance.saveFile(
+      name: _sanitize(baseName),
+      bytes: bytes,
+      fileExtension: 'pdf',
+      mimeType: MimeType.pdf,
+    );
+  }
+
+  Future<void> saveXlsx(String baseName, Uint8List bytes) async {
+    await FileSaver.instance.saveFile(
+      name: _sanitize(baseName),
+      bytes: bytes,
+      fileExtension: 'xlsx',
+      mimeType: MimeType.microsoftExcel,
+    );
+  }
+
+  String _sanitize(String value) {
+    return value.replaceAll(RegExp(r'[^A-Za-z0-9._-]'), '-');
   }
 }

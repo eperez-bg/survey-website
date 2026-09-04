@@ -1,0 +1,202 @@
+{
+  "surveyId": "sample-schema-9-admin-map",
+  "schemaVersion": 9,
+  "status": "completed",
+  "visitDate": "2026-09-02T00:00:00.000Z",
+  "notes": "Representative schema-9 file for admin map and export verification.",
+  "createdAt": "2026-09-02T16:00:00.000Z",
+  "updatedAt": "2026-09-02T16:49:21.211Z",
+  "completedAt": "2026-09-02T16:49:21.211Z",
+  "storeInfo": {
+    "storeNumber": "2255",
+    "stateCode": "IL",
+    "city": "West Jefferson",
+    "picName": "Jordan Sample"
+  },
+  "surveyorInfo": {
+    "surveyorName": "Alex Surveyor",
+    "surveyorCompany": "Survey Operations"
+  },
+  "gardenCenterLayout": {
+    "canvasRows": 32,
+    "canvasColumns": 42,
+    "roomBounds": {
+      "topRow": 4,
+      "leftColumn": 5,
+      "widthCells": 30,
+      "heightCells": 22
+    },
+    "layoutTableList": [
+      {
+        "tableId": "normal-a",
+        "zoneId": "zone-a",
+        "pairId": "normal-pair-1",
+        "topRow": 8,
+        "leftColumn": 9,
+        "tableKind": "normal",
+        "orientation": "horizontal"
+      },
+      {
+        "tableId": "normal-b",
+        "zoneId": "zone-a",
+        "pairId": "normal-pair-1",
+        "topRow": 10,
+        "leftColumn": 9,
+        "tableKind": "normal",
+        "orientation": "horizontal"
+      },
+      {
+        "tableId": "hanging-a",
+        "zoneId": "zone-b",
+        "pairId": "hanging-pair-1",
+        "topRow": 14,
+        "leftColumn": 18,
+        "tableKind": "hanging_basket",
+        "orientation": "vertical"
+      },
+      {
+        "tableId": "hanging-b",
+        "zoneId": "zone-b",
+        "pairId": "hanging-pair-1",
+        "topRow": 14,
+        "leftColumn": 20,
+        "tableKind": "hanging_basket",
+        "orientation": "vertical"
+      },
+      {
+        "tableId": "custom-checkout",
+        "zoneId": null,
+        "topRow": 8,
+        "leftColumn": 24,
+        "tableKind": "custom",
+        "orientation": "vertical",
+        "customName": "Checkout Table"
+      }
+    ],
+    "zoneList": [
+      {
+        "zoneId": "zone-a",
+        "label": "Front Benches",
+        "colorHex": "#22C55E"
+      },
+      {
+        "zoneId": "zone-b",
+        "label": "Hanging Baskets",
+        "colorHex": "#A78BFA"
+      }
+    ],
+    "canopyCellList": [
+      {
+        "row": 6,
+        "column": 7,
+        "heightInches": 120.0,
+        "lengthInches": 144.0,
+        "widthInches": 96.0
+      },
+      {
+        "row": 6,
+        "column": 8,
+        "heightInches": 120.0,
+        "lengthInches": 144.0,
+        "widthInches": 96.0
+      },
+      {
+        "row": 6,
+        "column": 9,
+        "heightInches": 120.0,
+        "lengthInches": 144.0,
+        "widthInches": 96.0
+      },
+      {
+        "row": 6,
+        "column": 10,
+        "heightInches": 120.0,
+        "lengthInches": 144.0,
+        "widthInches": 96.0
+      },
+      {
+        "row": 7,
+        "column": 7,
+        "heightInches": 120.0,
+        "lengthInches": 144.0,
+        "widthInches": 96.0
+      },
+      {
+        "row": 7,
+        "column": 8,
+        "heightInches": 120.0,
+        "lengthInches": 144.0,
+        "widthInches": 96.0
+      },
+      {
+        "row": 7,
+        "column": 9,
+        "heightInches": 120.0,
+        "lengthInches": 144.0,
+        "widthInches": 96.0
+      },
+      {
+        "row": 7,
+        "column": 10,
+        "heightInches": 120.0,
+        "lengthInches": 144.0,
+        "widthInches": 96.0
+      }
+    ],
+    "spigotList": [
+      {
+        "rowLine": 4,
+        "columnLine": 8,
+        "pressurePsi": 55.0
+      },
+      {
+        "rowLine": 18,
+        "columnLine": 35,
+        "pressurePsi": 47.0
+      }
+    ],
+    "distanceList": [
+      {
+        "distanceId": "distance-left-to-normal",
+        "measuredDistance": 96.0,
+        "measurementUnit": "inches",
+        "start": {
+          "type": "wall",
+          "wallSide": "left",
+          "offsetCells": 4
+        },
+        "end": {
+          "type": "table",
+          "tableId": "normal-a",
+          "edgeSide": "left",
+          "offsetCells": 0
+        }
+      },
+      {
+        "distanceId": "distance-hanging-to-right",
+        "measuredDistance": 180.0,
+        "measurementUnit": "inches",
+        "start": {
+          "type": "table",
+          "tableId": "hanging-b",
+          "edgeSide": "right",
+          "offsetCells": 1
+        },
+        "end": {
+          "type": "wall",
+          "wallSide": "right",
+          "offsetCells": 11
+        }
+      }
+    ],
+    "entranceList": [
+      {
+        "entranceId": "main-entrance",
+        "wallSide": "bottom",
+        "offsetCells": 10,
+        "widthCells": 6,
+        "clearanceDepthCells": 4
+      }
+    ]
+  }
+}

@@ -1,187 +1,346 @@
 // store_list_screen.dart
-// Admin landing page: storage-backed store list, state filter, store search,
-// multi-select, bulk exports, and direct sample-survey access.
+//
+// Responsibility:
+// Main desktop workspace: business-friendly store list on the left and the
+// selected store map/editor on the right. Storage-folder browsing is deliberately
+// not the primary UI; version paths remain visible for debugging and history.
 
 import 'package:flutter/material.dart';
 
-import '../controllers/store_list_controller.dart';
+import '../controllers/survey_admin_controller.dart';
 import '../models/store_record.dart';
-import '../utils/app_config.dart';
-import 'survey_editor_screen.dart';
+import 'store_detail_screen.dart';
 
-class StoreListScreen extends StatefulWidget {
-  const StoreListScreen({super.key});
+class StoreListScreen extends StatelessWidget {
+  final SurveyAdminController controller;
 
-  @override
-  State<StoreListScreen> createState() => _StoreListScreenState();
-}
-
-class _StoreListScreenState extends State<StoreListScreen> {
-  late final StoreListController controller;
-
-  @override
-  void initState() {
-    super.initState();
-    controller = StoreListController()..addListener(_changed);
-    controller.load();
-  }
-
-  @override
-  void dispose() {
-    controller.removeListener(_changed);
-    controller.dispose();
-    super.dispose();
-  }
-
-  void _changed() => setState(() {});
+  const StoreListScreen({super.key, required this.controller});
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Survey Admin'),
-        actions: [
-          TextButton.icon(
-            onPressed: _openSample,
-            icon: const Icon(Icons.science_outlined),
-            label: const Text('Open sample 2255'),
-          ),
-          const SizedBox(width: 12),
-        ],
-      ),
-      body: Padding(
-        padding: const EdgeInsets.all(20),
+      body: SafeArea(
         child: Column(
           children: [
-            _buildToolbar(),
-            const SizedBox(height: 12),
-            if (controller.error != null)
-              _message(controller.error!, Colors.red.shade50),
-            Expanded(child: _buildBody()),
+            _TopBar(controller: controller),
+            _MessageBar(controller: controller),
+            Expanded(
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  if (constraints.maxWidth < 900) {
+                    return _NarrowLayout(controller: controller);
+                  }
+                  return Row(
+                    children: [
+                      SizedBox(
+                        width: 365,
+                        child: _StorePane(controller: controller),
+                      ),
+                      const VerticalDivider(width: 1),
+                      Expanded(
+                        child: StoreDetailScreen(controller: controller),
+                      ),
+                    ],
+                  );
+                },
+              ),
+            ),
           ],
         ),
       ),
     );
   }
+}
 
-  Widget _buildToolbar() {
+class _TopBar extends StatelessWidget {
+  final SurveyAdminController controller;
+
+  const _TopBar({required this.controller});
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      elevation: 1,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+        child: Row(
+          children: [
+            const Icon(Icons.storefront_outlined, size: 30),
+            const SizedBox(width: 10),
+            Text(
+              'Survey Production Admin',
+              style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+            const Spacer(),
+            if (controller.isBusy) ...[
+              const SizedBox(
+                width: 18,
+                height: 18,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              ),
+              const SizedBox(width: 10),
+            ],
+            Text('${controller.stores.length} stores'),
+            const SizedBox(width: 12),
+            IconButton(
+              tooltip: 'Refresh Supabase store index',
+              onPressed: controller.isBusy
+                  ? null
+                  : () => controller.refreshStoreIndex(),
+              icon: const Icon(Icons.refresh),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _MessageBar extends StatelessWidget {
+  final SurveyAdminController controller;
+
+  const _MessageBar({required this.controller});
+
+  @override
+  Widget build(BuildContext context) {
+    final error = controller.errorMessage;
+    final status = controller.statusMessage;
+    if (error == null && status == null) {
+      return const SizedBox.shrink();
+    }
+
+    final isError = error != null;
+    final scheme = Theme.of(context).colorScheme;
+    return Container(
+      width: double.infinity,
+      color: isError ? scheme.errorContainer : scheme.secondaryContainer,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      child: Row(
+        children: [
+          Icon(isError ? Icons.error_outline : Icons.info_outline, size: 18),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              error ?? status!,
+              maxLines: 3,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          IconButton(
+            onPressed: controller.clearMessage,
+            icon: const Icon(Icons.close, size: 18),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _StorePane extends StatelessWidget {
+  final SurveyAdminController controller;
+
+  const _StorePane({required this.controller});
+
+  @override
+  Widget build(BuildContext context) {
+    final stores = controller.filteredStores;
+    final allFilteredSelected = stores.isNotEmpty &&
+        stores.every(controller.isStoreSelected);
+
+    return ColoredBox(
+      color: Theme.of(context).colorScheme.surfaceContainerLowest,
+      child: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(12),
+            child: Column(
+              children: [
+                TextField(
+                  onChanged: controller.setSearchQuery,
+                  decoration: const InputDecoration(
+                    prefixIcon: Icon(Icons.search),
+                    hintText: 'Search store number or city',
+                    border: OutlineInputBorder(),
+                    isDense: true,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    Expanded(
+                      child: DropdownButtonFormField<String?>(
+                        value: controller.stateFilter,
+                        isExpanded: true,
+                        decoration: const InputDecoration(
+                          labelText: 'State',
+                          border: OutlineInputBorder(),
+                          isDense: true,
+                        ),
+                        items: [
+                          const DropdownMenuItem<String?>(
+                            value: null,
+                            child: Text('All states'),
+                          ),
+                          for (final state in controller.availableStates)
+                            DropdownMenuItem<String?>(
+                              value: state,
+                              child: Text(state),
+                            ),
+                        ],
+                        onChanged: controller.setStateFilter,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Checkbox(
+                      value: allFilteredSelected,
+                      onChanged: stores.isEmpty
+                          ? null
+                          : (selected) => controller.selectAllFiltered(
+                                selected ?? false,
+                              ),
+                    ),
+                    const Text('All'),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                _BulkActions(controller: controller),
+              ],
+            ),
+          ),
+          const Divider(height: 1),
+          Expanded(
+            child: stores.isEmpty
+                ? const Center(child: Text('No stores match the filters.'))
+                : ListView.builder(
+                    itemCount: stores.length,
+                    itemBuilder: (context, index) => _StoreListTile(
+                      controller: controller,
+                      store: stores[index],
+                    ),
+                  ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _BulkActions extends StatelessWidget {
+  final SurveyAdminController controller;
+
+  const _BulkActions({required this.controller});
+
+  @override
+  Widget build(BuildContext context) {
     return Wrap(
-      crossAxisAlignment: WrapCrossAlignment.center,
-      spacing: 12,
-      runSpacing: 10,
+      spacing: 6,
+      runSpacing: 6,
       children: [
-        SizedBox(
-          width: 300,
-          child: TextField(
-            onChanged: controller.setSearch,
-            decoration: const InputDecoration(
-              labelText: 'Search store number / city',
-              prefixIcon: Icon(Icons.search),
-              border: OutlineInputBorder(),
-            ),
-          ),
+        OutlinedButton.icon(
+          onPressed:
+              controller.isBusy ? null : controller.downloadSelectedExcel,
+          icon: const Icon(Icons.table_view, size: 18),
+          label: Text('Selected XLSX (${controller.selectedStoreCount})'),
         ),
-        SizedBox(
-          width: 180,
-          child: DropdownButtonFormField<String>(
-            initialValue: controller.stateFilter,
-            decoration: const InputDecoration(
-              labelText: 'State',
-              border: OutlineInputBorder(),
-            ),
-            items: controller.states
-                .map((s) => DropdownMenuItem(value: s, child: Text(s)))
-                .toList(),
-            onChanged: (v) => controller.setState(v ?? 'ALL'),
-          ),
-        ),
-        FilledButton.tonalIcon(
-          onPressed: controller.isLoading ? null : controller.load,
-          icon: const Icon(Icons.refresh),
-          label: const Text('Refresh'),
-        ),
-        FilledButton.tonalIcon(
-          onPressed: controller.selectedStoreNumbers.isEmpty
-              ? null
-              : controller.exportSelectedExcel,
-          icon: const Icon(Icons.table_view),
-          label: const Text('Selected Excel'),
-        ),
-        FilledButton.tonalIcon(
-          onPressed: controller.selectedStoreNumbers.isEmpty
-              ? null
-              : controller.exportSelectedPdf,
-          icon: const Icon(Icons.picture_as_pdf),
+        OutlinedButton.icon(
+          onPressed: controller.isBusy ? null : controller.downloadSelectedPdf,
+          icon: const Icon(Icons.picture_as_pdf, size: 18),
           label: const Text('Selected PDF'),
         ),
-        FilledButton.icon(
-          onPressed: controller.stores.isEmpty
-              ? null
-              : () => controller.exportSelectedExcel(all: true),
-          icon: const Icon(Icons.download),
-          label: const Text('All Stores Excel'),
+        OutlinedButton.icon(
+          onPressed: controller.isBusy ? null : controller.downloadAllExcel,
+          icon: const Icon(Icons.download_for_offline_outlined, size: 18),
+          label: const Text('All XLSX'),
         ),
       ],
     );
   }
+}
 
-  Widget _buildBody() {
-    if (controller.isLoading) {
-      return const Center(child: CircularProgressIndicator());
-    }
-    if (controller.filteredStores.isEmpty) {
-      return const Center(child: Text('No stores found.'));
-    }
+class _StoreListTile extends StatelessWidget {
+  final SurveyAdminController controller;
+  final StoreRecord store;
 
-    return Card(
-      clipBehavior: Clip.antiAlias,
-      child: ListView.separated(
-        itemCount: controller.filteredStores.length,
-        separatorBuilder: (_, __) => const Divider(height: 1),
-        itemBuilder: (context, index) {
-          final store = controller.filteredStores[index];
-          return ListTile(
-            leading: Checkbox(
-              value: controller.isSelected(store),
-              onChanged: (v) => controller.toggleSelection(store, v ?? false),
+  const _StoreListTile({required this.controller, required this.store});
+
+  @override
+  Widget build(BuildContext context) {
+    final isCurrent = controller.currentStore?.key == store.key;
+    return Material(
+      color: isCurrent
+          ? Theme.of(context).colorScheme.primaryContainer.withOpacity(0.5)
+          : Colors.transparent,
+      child: InkWell(
+        onTap: controller.isBusy ? null : () => controller.openStore(store),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(6, 8, 12, 8),
+          child: Row(
+            children: [
+              Checkbox(
+                value: controller.isStoreSelected(store),
+                onChanged: (value) =>
+                    controller.setStoreSelected(store, value ?? false),
+              ),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Store ${store.storeNumber}',
+                      style: const TextStyle(fontWeight: FontWeight.w700),
+                    ),
+                    Text(
+                      store.locationLabel,
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                    Text(
+                      '${store.versions.length} version${store.versions.length == 1 ? '' : 's'}',
+                      style: Theme.of(context).textTheme.labelSmall,
+                    ),
+                  ],
+                ),
+              ),
+              const Icon(Icons.chevron_right),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _NarrowLayout extends StatelessWidget {
+  final SurveyAdminController controller;
+
+  const _NarrowLayout({required this.controller});
+
+  @override
+  Widget build(BuildContext context) {
+    if (controller.currentSurvey != null) {
+      return Column(
+        children: [
+          Align(
+            alignment: Alignment.centerLeft,
+            child: TextButton.icon(
+              onPressed: () {
+                // On narrow screens the selected detail remains visible. A full
+                // mobile navigation shell can be added later if this is needed.
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Use a wider browser window to show list + map together.'),
+                  ),
+                );
+              },
+              icon: const Icon(Icons.info_outline),
+              label: const Text('Desktop layout recommended'),
             ),
-            title: Text('Store ${store.storeNumber}'),
-            subtitle: Text('${store.locationLabel}\n${store.latestObjectPath}'),
-            isThreeLine: true,
-            trailing: const Icon(Icons.chevron_right),
-            onTap: () => _openStore(store),
-          );
-        },
-      ),
-    );
-  }
-
-  Widget _message(String text, Color color) => Container(
-        width: double.infinity,
-        margin: const EdgeInsets.only(bottom: 12),
-        padding: const EdgeInsets.all(12),
-        color: color,
-        child: Text(text),
+          ),
+          Expanded(child: StoreDetailScreen(controller: controller)),
+        ],
       );
-
-  void _openStore(StoreRecord store) {
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => SurveyEditorScreen(
-          objectPath: store.latestObjectPath,
-          storeRecord: store,
-        ),
-      ),
-    );
-  }
-
-  void _openSample() {
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => const SurveyEditorScreen(
-          objectPath: AppConfig.sampleObjectPath,
-        ),
-      ),
-    );
+    }
+    return _StorePane(controller: controller);
   }
 }

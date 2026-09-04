@@ -1,44 +1,42 @@
 // store_record.dart
-// Lightweight store index item used by the store-list page.
+//
+// Responsibility:
+// Represents one store in the admin index plus every JSON version discovered in
+// its Supabase Storage folder.
+
+class StorageSurveyVersion {
+  final String objectPath;
+  final DateTime? updatedAt;
+
+  const StorageSurveyVersion({required this.objectPath, this.updatedAt});
+
+  String get fileName => objectPath.split('/').last;
+}
 
 class StoreRecord {
+  final String storageFolder;
+  final String storeNumber;
+  final String stateCode;
+  final String city;
+  final List<StorageSurveyVersion> versions;
+
   const StoreRecord({
+    required this.storageFolder,
     required this.storeNumber,
-    required this.folderPath,
-    required this.latestObjectPath,
-    required this.locationSlug,
-    this.state = '',
-    this.city = '',
-    this.latestUploadedAt,
+    required this.stateCode,
+    required this.city,
+    required this.versions,
   });
 
-  final String storeNumber;
-  final String folderPath;
-  final String latestObjectPath;
-  final String locationSlug;
-  final String state;
-  final String city;
-  final DateTime? latestUploadedAt;
+  StorageSurveyVersion get latestVersion => versions.first;
+
+  String get key => storageFolder;
 
   String get locationLabel {
-    final parts = [city, state].where((e) => e.trim().isNotEmpty).toList();
-    return parts.isEmpty ? locationSlug : parts.join(', ');
-  }
-
-  StoreRecord copyWith({
-    String? state,
-    String? city,
-    String? latestObjectPath,
-    DateTime? latestUploadedAt,
-  }) {
-    return StoreRecord(
-      storeNumber: storeNumber,
-      folderPath: folderPath,
-      latestObjectPath: latestObjectPath ?? this.latestObjectPath,
-      locationSlug: locationSlug,
-      state: state ?? this.state,
-      city: city ?? this.city,
-      latestUploadedAt: latestUploadedAt ?? this.latestUploadedAt,
-    );
+    final pieces = [
+      if (city.trim().isNotEmpty) city.trim(),
+      if (stateCode.trim().isNotEmpty) stateCode.trim(),
+    ];
+    return pieces.isEmpty ? storageFolder : pieces.join(', ');
   }
 }
