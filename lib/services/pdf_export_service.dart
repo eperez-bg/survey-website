@@ -9,8 +9,9 @@ import 'dart:typed_data';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 
-import '../models/production_calculation.dart';
+import '../models/production_metrics.dart';
 import '../models/survey_document.dart';
+import '../models/survey_export_bundle.dart';
 import 'map_image_service.dart';
 
 class PdfExportService {
@@ -20,14 +21,14 @@ class PdfExportService {
 
   Future<Uint8List> buildSurveyPdf({
     required SurveyDocument survey,
-    required ProductionCalculation calculation,
+    required ProductionMetrics metrics,
     required String objectPath,
   }) async {
     return buildStoresPdf([
       SurveyExportBundle(
         objectPath: objectPath,
         survey: survey,
-        calculation: calculation,
+        metrics: metrics,
       ),
     ]);
   }
@@ -63,12 +64,21 @@ class PdfExportService {
                 pw.SizedBox(height: 8),
                 pw.Row(
                   children: [
-                    _metric('Irrigation systems', bundle.calculation.irrigationSystems),
-                    _metric('Weighted tables', bundle.calculation.weightedTableCount),
-                    _metric('Distances', bundle.calculation.distanceCount),
-                    _metric('Distance inches', _number(bundle.calculation.totalDistanceInches)),
-                    _metric('Spigots', bundle.calculation.spigotCount),
-                    _metric('Entrances', bundle.calculation.entranceCount),
+                    _metric('Tables', bundle.metrics.tableCount),
+                    _metric(
+                      'Under canopy',
+                      bundle.metrics.tableCountUnderCanopy,
+                    ),
+                    _metric(
+                      '46-in. ramps',
+                      _number(bundle.metrics.rampCountAt46Inches),
+                    ),
+                    _metric('Spigots', bundle.metrics.spigotCount),
+                    _metric(
+                      'Average PSI',
+                      _optionalNumber(bundle.metrics.averagePsi),
+                    ),
+                    _metric('Zones', bundle.metrics.zoneCount),
                   ],
                 ),
                 pw.SizedBox(height: 10),
@@ -118,4 +128,6 @@ class PdfExportService {
   String _number(double value) => value == value.roundToDouble()
       ? value.toInt().toString()
       : value.toStringAsFixed(2);
+
+  String _optionalNumber(double? value) => value == null ? '—' : _number(value);
 }

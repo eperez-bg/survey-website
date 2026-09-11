@@ -22,9 +22,9 @@ class StoreDetailScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final survey = controller.currentSurvey;
     final objectPath = controller.currentObjectPath;
-    final calculation = controller.currentCalculation;
+    final metrics = controller.currentMetrics;
 
-    if (survey == null || objectPath == null || calculation == null) {
+    if (survey == null || objectPath == null || metrics == null) {
       return const Center(
         child: Padding(
           padding: EdgeInsets.all(32),
@@ -42,7 +42,7 @@ class StoreDetailScreen extends StatelessWidget {
             children: [
               _StoreHeader(controller: controller),
               const SizedBox(height: 12),
-              ProductionSummaryCard(calculation: calculation),
+              ProductionSummaryCard(metrics: metrics),
               const SizedBox(height: 12),
               _EditStatusCard(
                 hasUnsavedChanges: controller.hasUnsavedChanges,

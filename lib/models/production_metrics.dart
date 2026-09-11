@@ -1,0 +1,70 @@
+// production_metrics.dart
+//
+// Responsibility:
+// Represents the derived production values used by the admin summary and
+// exports. Computed totals stay as getters so category counts cannot disagree.
+
+class ProductionMetrics {
+  final int singleTablesUnderCanopy;
+  final int hangingBasketsUnderCanopy;
+  final int specialTablesUnderCanopy;
+  final int singleTablesOutsideCanopy;
+  final int hangingBasketsOutsideCanopy;
+  final int specialTablesOutsideCanopy;
+  final int spigotCount;
+  final double? averagePsi;
+  final double rampCountAt46Inches;
+  final int zoneCount;
+  final double? maxCanopyHeightInches;
+
+  const ProductionMetrics({
+    required this.singleTablesUnderCanopy,
+    required this.hangingBasketsUnderCanopy,
+    required this.specialTablesUnderCanopy,
+    required this.singleTablesOutsideCanopy,
+    required this.hangingBasketsOutsideCanopy,
+    required this.specialTablesOutsideCanopy,
+    required this.spigotCount,
+    required this.averagePsi,
+    required this.rampCountAt46Inches,
+    required this.zoneCount,
+    required this.maxCanopyHeightInches,
+  });
+
+  int get tableCountUnderCanopy =>
+      singleTablesUnderCanopy +
+      hangingBasketsUnderCanopy +
+      specialTablesUnderCanopy;
+
+  int get tableCountOutsideCanopy =>
+      singleTablesOutsideCanopy +
+      hangingBasketsOutsideCanopy +
+      specialTablesOutsideCanopy;
+
+  int get tableCount => tableCountUnderCanopy + tableCountOutsideCanopy;
+
+  int get singleTableCount =>
+      singleTablesUnderCanopy + singleTablesOutsideCanopy;
+
+  int get hangingBasketCount =>
+      hangingBasketsUnderCanopy + hangingBasketsOutsideCanopy;
+
+  int get specialTableCount =>
+      specialTablesUnderCanopy + specialTablesOutsideCanopy;
+
+  Map<String, Object?> toJson() => {
+        'tableCount': tableCount,
+        'tableCountUnderCanopy': tableCountUnderCanopy,
+        'singleTablesUnderCanopy': singleTablesUnderCanopy,
+        'hangingBasketsUnderCanopy': hangingBasketsUnderCanopy,
+        'specialTablesUnderCanopy': specialTablesUnderCanopy,
+        'singleTablesOutsideCanopy': singleTablesOutsideCanopy,
+        'hangingBasketsOutsideCanopy': hangingBasketsOutsideCanopy,
+        'specialTablesOutsideCanopy': specialTablesOutsideCanopy,
+        'spigotCount': spigotCount,
+        'averagePsi': averagePsi,
+        'rampCountAt46Inches': rampCountAt46Inches,
+        'zoneCount': zoneCount,
+        'maxCanopyHeightInches': maxCanopyHeightInches,
+      };
+}

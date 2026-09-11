@@ -11,21 +11,22 @@ import 'package:flutter/foundation.dart';
 
 import '../config/app_config.dart';
 import '../models/editor_result.dart';
-import '../models/production_calculation.dart';
+import '../models/production_metrics.dart';
 import '../models/store_record.dart';
 import '../models/survey_document.dart';
+import '../models/survey_export_bundle.dart';
 import '../models/survey_map_model.dart';
 import '../repositories/survey_storage_repository.dart';
 import '../services/excel_export_service.dart';
 import '../services/file_download_service.dart';
 import '../services/pdf_export_service.dart';
-import '../services/production_calculation_service.dart';
 import '../services/survey_validation_service.dart';
+import '../utils/production_metrics_calculator.dart';
 
 class SurveyAdminController extends ChangeNotifier {
   final SurveyStorageRepository repository;
   final AppConfig config;
-  final ProductionCalculationService calculationService;
+  final ProductionMetricsCalculator metricsCalculator;
   final SurveyValidationService validationService;
   final ExcelExportService excelExportService;
   final PdfExportService pdfExportService;
@@ -34,7 +35,7 @@ class SurveyAdminController extends ChangeNotifier {
   SurveyAdminController({
     required this.repository,
     required this.config,
-    this.calculationService = const ProductionCalculationService(),
+    this.metricsCalculator = const ProductionMetricsCalculator(),
     this.validationService = const SurveyValidationService(),
     this.excelExportService = const ExcelExportService(),
     this.pdfExportService = const PdfExportService(),
@@ -74,9 +75,9 @@ class SurveyAdminController extends ChangeNotifier {
     return survey.toJsonString() != snapshot.toJsonString();
   }
 
-  ProductionCalculation? get currentCalculation {
+  ProductionMetrics? get currentMetrics {
     final survey = _currentSurvey;
-    return survey == null ? null : calculationService.calculate(survey);
+    return survey == null ? null : metricsCalculator.calculate(survey);
   }
 
   List<String> get availableStates {
@@ -314,7 +315,7 @@ class SurveyAdminController extends ChangeNotifier {
     await _runBusy('Building store Excel...', () async {
       final bytes = excelExportService.buildSurveyWorkbook(
         survey: survey,
-        calculation: calculationService.calculate(survey),
+        metrics: metricsCalculator.calculate(survey),
         objectPath: path,
       );
       await fileDownloadService.saveXlsx('store-${survey.storeNumber}', bytes);
@@ -330,7 +331,7 @@ class SurveyAdminController extends ChangeNotifier {
     await _runBusy('Rendering store PDF...', () async {
       final bytes = await pdfExportService.buildSurveyPdf(
         survey: survey,
-        calculation: calculationService.calculate(survey),
+        metrics: metricsCalculator.calculate(survey),
         objectPath: path,
       );
       await fileDownloadService.savePdf('store-${survey.storeNumber}-map', bytes);
@@ -400,7 +401,7 @@ class SurveyAdminController extends ChangeNotifier {
         SurveyExportBundle(
           objectPath: path,
           survey: survey,
-          calculation: calculationService.calculate(survey),
+          metrics: metricsCalculator.calculate(survey),
         ),
       );
     }

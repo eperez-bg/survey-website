@@ -5,55 +5,55 @@
 
 import 'package:flutter/material.dart';
 
-import '../models/production_calculation.dart';
+import '../models/production_metrics.dart';
 
 class ProductionSummaryCard extends StatelessWidget {
-  final ProductionCalculation calculation;
+  final ProductionMetrics metrics;
 
-  const ProductionSummaryCard({super.key, required this.calculation});
+  const ProductionSummaryCard({super.key, required this.metrics});
 
   @override
   Widget build(BuildContext context) {
     final items = <(String, String, String)>[
       (
-        'Irrigation systems',
-        calculation.irrigationSystems.toString(),
-        'zone count',
+        'Table count',
+        metrics.tableCount.toString(),
+        'all production tables',
       ),
       (
-        'Weighted tables',
-        calculation.weightedTableCount.toString(),
-        '${calculation.logicalTableFixtures} logical fixtures',
+        'Under canopy',
+        metrics.tableCountUnderCanopy.toString(),
+        'any table cell overlaps',
+      ),
+      (
+        'Outside canopy',
+        metrics.tableCountOutsideCanopy.toString(),
+        'no table cell overlaps',
       ),
       (
         'Table mix',
-        '${calculation.normalTableCount} / ${calculation.hangingBasketCount}',
-        'normal / hanging',
+        '${metrics.singleTableCount} / ${metrics.hangingBasketCount} / ${metrics.specialTableCount}',
+        'single / hanging / special',
       ),
       (
-        'Distances',
-        calculation.distanceCount.toString(),
-        '${_number(calculation.totalDistanceInches)} total inches',
+        'Ramp count',
+        _number(metrics.rampCountAt46Inches),
+        'each distance ÷ 46 in.',
       ),
       (
-        '3-foot sections',
-        _number(calculation.threeFootSections),
-        'temporary distance ÷ 36 rule',
+        'Spigots',
+        metrics.spigotCount.toString(),
+        'average ${_optionalNumber(metrics.averagePsi)} PSI',
       ),
       (
-        'Water + access',
-        '${calculation.spigotCount} / ${calculation.entranceCount}',
-        'spigots / entrances',
+        'Zones',
+        metrics.zoneCount.toString(),
+        'persisted map zones',
       ),
       (
-        'Canopy areas',
-        calculation.canopyAreaCount.toString(),
-        '${calculation.canopyCellCount} occupied cells',
-      ),
-      (
-        'Custom tables',
-        calculation.customTableCount.toString(),
-        '${calculation.physicalTableObjects} physical table objects',
+        'Max canopy height',
+        _optionalNumber(metrics.maxCanopyHeightInches),
+        'inches',
       ),
     ];
 
@@ -109,4 +109,7 @@ class ProductionSummaryCard extends StatelessWidget {
   static String _number(double value) => value == value.roundToDouble()
       ? value.toInt().toString()
       : value.toStringAsFixed(2);
+
+  static String _optionalNumber(double? value) =>
+      value == null ? '—' : _number(value);
 }
