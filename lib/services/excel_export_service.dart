@@ -1,7 +1,7 @@
 // excel_export_service.dart
 //
 // Responsibility:
-// Formats schema-9 survey data and already-derived production values as XLSX.
+// Formats supported survey data and already-derived production values as XLSX.
 // It deliberately does not own geometry or manufacturing rules.
 
 import 'dart:typed_data';
@@ -11,6 +11,7 @@ import 'package:excel_community/excel_community.dart';
 import '../models/production_metrics.dart';
 import '../models/survey_document.dart';
 import '../models/survey_export_bundle.dart';
+import '../utils/excel_sheet_formatter.dart';
 
 class ExcelExportService {
   const ExcelExportService();
@@ -61,6 +62,8 @@ class ExcelExportService {
     for (final bundle in bundles) {
       _append(stores, _productionRow(bundle.survey, bundle.metrics));
     }
+
+    const ExcelSheetFormatter().formatPopulatedSheet(stores);
     return _encode(workbook);
   }
 

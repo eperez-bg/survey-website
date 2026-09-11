@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -55,5 +56,64 @@ void main() {
 
   test('representative schema-9 survey passes upload validation', () {
     expect(const SurveyValidationService().validate(survey), isEmpty);
+  });
+
+  test('schema-11 canopy endpoint reconstructs its occupied distance cells', () {
+    final schema11 = SurveyDocument.fromJsonString(
+      File('assets/sample_survey_v11.json').readAsStringSync(),
+    );
+    final layout = schema11.mapData;
+    final distance = layout.distances.single;
+
+    expect(schema11.hasSupportedSchema, isTrue);
+    expect(layout.noInstallZoneCells.length, 2);
+    expect(distance.start, isA<CanopyDistanceEndpointModel>());
+    expect(
+      MapGeometry.cellsForDistance(distance, layout),
+      [
+        const GridCoordinate(row: 5, column: 6),
+        const GridCoordinate(row: 6, column: 6),
+        const GridCoordinate(row: 7, column: 6),
+        const GridCoordinate(row: 8, column: 6),
+      ],
+    );
+    expect(const SurveyValidationService().validate(schema11), isEmpty);
+  });
+
+  test('schema 10 remains supported without a no-install list', () {
+    final source = jsonDecode(
+      File('assets/sample_survey_v11.json').readAsStringSync(),
+    ) as Map<String, dynamic>;
+    source['schemaVersion'] = 10;
+    final layoutJson = source['gardenCenterLayout'] as Map<String, dynamic>;
+    layoutJson.remove('noInstallZoneCellList');
+    final schema10 = SurveyDocument(source);
+
+    expect(schema10.hasSupportedSchema, isTrue);
+    expect(schema10.mapData.noInstallZoneCells, isEmpty);
+    expect(const SurveyValidationService().validate(schema10), isEmpty);
+  });
+
+  test('a no-install cell blocks a distance strip', () {
+    final source = jsonDecode(
+      File('assets/sample_survey_v11.json').readAsStringSync(),
+    ) as Map<String, dynamic>;
+    final layoutJson = source['gardenCenterLayout'] as Map<String, dynamic>;
+    layoutJson['noInstallZoneCellList'] = [
+      {'row': 7, 'column': 6},
+    ];
+    final blocked = SurveyDocument(source);
+
+    expect(
+      MapGeometry.cellsForDistance(
+        blocked.mapData.distances.single,
+        blocked.mapData,
+      ),
+      isEmpty,
+    );
+    expect(
+      const SurveyValidationService().validate(blocked),
+      contains(contains('crosses a no-install zone')),
+    );
   });
 }

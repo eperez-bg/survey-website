@@ -15,7 +15,7 @@ class ProductionMetrics {
   final double? averagePsi;
   final double rampCountAt46Inches;
   final int zoneCount;
-  final double? maxCanopyHeightInches;
+  final double maxCanopyHeightInches;
 
   const ProductionMetrics({
     required this.singleTablesUnderCanopy,

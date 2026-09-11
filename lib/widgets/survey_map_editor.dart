@@ -2,7 +2,7 @@
 //
 // Responsibility:
 // Owns browser-only map interaction: fit/pan/zoom, fixture selection, safe
-// pair-aware table dragging, and small editors for current schema-9 fixtures.
+// pair-aware table dragging, and small editors for supported schema 9-11 maps.
 // Geometry and mutations stay in utilities/models so this widget never guesses
 // how the mobile survey format works.
 
@@ -123,7 +123,7 @@ class _SurveyMapEditorState extends State<SurveyMapEditor> {
               runSpacing: 8,
               children: [
                 Text(
-                  'Schema 9 store map',
+                  'Schema ${widget.survey.schemaVersion} store map',
                   style: Theme.of(context).textTheme.titleMedium?.copyWith(
                         fontWeight: FontWeight.w800,
                       ),
@@ -444,6 +444,11 @@ class _MapLegend extends StatelessWidget {
     final labels = <(Color, String)>[
       (const Color(0xFF166534), '${layout.tables.length} physical tables'),
       (const Color(0xFFF59E0B), '${layout.canopyCells.length} canopy cells'),
+      if (layout.noInstallZoneCells.isNotEmpty)
+        (
+          const Color(0xFFB91C1C),
+          '${layout.noInstallZoneCells.length} no-install cells',
+        ),
       (const Color(0xFF2563EB), '${layout.distances.length} distances'),
       (const Color(0xFF0891B2), '${layout.entrances.length} entrances'),
       (const Color(0xFFDC2626), '${layout.spigots.length} spigots'),

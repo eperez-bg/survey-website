@@ -1,15 +1,17 @@
 // survey_map_model.dart
 //
 // Responsibility:
-// Represents the persisted map contract used by survey-app schema 9. Parsing is
-// intentionally tolerant enough to display older ramp-based survey versions,
-// while all new edits continue to use the current distance-based field names.
+// Represents the persisted map contracts used by survey-app schemas 9-11.
+// Parsing remains tolerant enough to display older ramp-based survey versions,
+// while supporting canopy distance endpoints and no-install zones from the
+// current schema.
 //
 // Main types:
 // - SurveyMapModel: complete gardenCenterLayout data.
 // - LayoutTableModel: one physical 2x3/3x2 table rectangle.
 // - DistanceModel/DistanceEndpointModel: saved measured-distance geometry.
-// - EntranceModel, SpigotModel, CanopyCellModel, ZoneModel, RoomBoundsModel.
+// - EntranceModel, SpigotModel, CanopyCellModel, NoInstallZoneCellModel,
+//   ZoneModel, and RoomBoundsModel.
 
 import '../utils/json_utils.dart';
 
@@ -203,6 +205,25 @@ class CanopyCellModel {
   }
 }
 
+class NoInstallZoneCellModel {
+  final int row;
+  final int column;
+
+  const NoInstallZoneCellModel({
+    required this.row,
+    required this.column,
+  });
+
+  String get key => '$row:$column';
+
+  factory NoInstallZoneCellModel.fromJson(Map<String, dynamic> json) {
+    return NoInstallZoneCellModel(
+      row: _requiredInt(json, 'row'),
+      column: _requiredInt(json, 'column'),
+    );
+  }
+}
+
 class SpigotModel {
   final int rowLine;
   final int columnLine;
@@ -245,6 +266,13 @@ sealed class DistanceEndpointModel {
       return WallDistanceEndpointModel(
         wallSide: _wallSide(json['wallSide']),
         offsetCells: _requiredInt(json, 'offsetCells'),
+      );
+    }
+    if (type == 'canopy') {
+      return CanopyDistanceEndpointModel(
+        row: _requiredInt(json, 'row'),
+        column: _requiredInt(json, 'column'),
+        edgeSide: _edgeSide(json['edgeSide']),
       );
     }
     throw FormatException('Unknown distance endpoint type: ${json['type']}');
@@ -290,6 +318,28 @@ final class WallDistanceEndpointModel extends DistanceEndpointModel {
 
   @override
   int get hashCode => Object.hash(wallSide, offsetCells);
+}
+
+final class CanopyDistanceEndpointModel extends DistanceEndpointModel {
+  final int row;
+  final int column;
+  final EdgeSide edgeSide;
+
+  const CanopyDistanceEndpointModel({
+    required this.row,
+    required this.column,
+    required this.edgeSide,
+  });
+
+  @override
+  bool operator ==(Object other) =>
+      other is CanopyDistanceEndpointModel &&
+      row == other.row &&
+      column == other.column &&
+      edgeSide == other.edgeSide;
+
+  @override
+  int get hashCode => Object.hash(row, column, edgeSide);
 }
 
 class DistanceModel {
@@ -379,6 +429,7 @@ class SurveyMapModel {
   final List<LayoutTableModel> tables;
   final List<ZoneModel> zones;
   final List<CanopyCellModel> canopyCells;
+  final List<NoInstallZoneCellModel> noInstallZoneCells;
   final List<SpigotModel> spigots;
   final List<DistanceModel> distances;
   final List<EntranceModel> entrances;
@@ -390,6 +441,7 @@ class SurveyMapModel {
     required this.tables,
     required this.zones,
     required this.canopyCells,
+    required this.noInstallZoneCells,
     required this.spigots,
     required this.distances,
     required this.entrances,
@@ -434,6 +486,9 @@ class SurveyMapModel {
           .toList(growable: false),
       canopyCells: mapListValue(json['canopyCellList'])
           .map(CanopyCellModel.fromJson)
+          .toList(growable: false),
+      noInstallZoneCells: mapListValue(json['noInstallZoneCellList'])
+          .map(NoInstallZoneCellModel.fromJson)
           .toList(growable: false),
       spigots: mapListValue(json['spigotList'])
           .map(SpigotModel.fromJson)
@@ -490,6 +545,6 @@ EdgeSide _edgeSide(Object? value) {
     'right' => EdgeSide.right,
     'bottom' => EdgeSide.bottom,
     'left' => EdgeSide.left,
-    final other => throw FormatException('Unknown table edge side: $other'),
+    final other => throw FormatException('Unknown fixture edge side: $other'),
   };
 }

@@ -1,7 +1,7 @@
 // survey_validation_service.dart
 //
 // Responsibility:
-// Repeats the field app's important schema-9 completion and geometry checks
+// Repeats the field app's important schema 9-11 completion and geometry checks
 // before an edited survey is uploaded as a new immutable version.
 
 import '../models/survey_document.dart';
@@ -16,9 +16,10 @@ class SurveyValidationService {
     final issues = <String>{};
     final layout = survey.mapData;
 
-    if (survey.schemaVersion != 9) {
+    if (!survey.hasSupportedSchema) {
       issues.add(
-        'This version uses schema ${survey.schemaVersion}; current uploads must use schema 9.',
+        'This version uses schema ${survey.schemaVersion}; the admin supports schemas '
+        '${SurveyDocument.minimumSupportedSchemaVersion}-${SurveyDocument.currentSupportedSchemaVersion}.',
       );
     }
     if (survey.storeNumber == 'Unknown' || survey.storeNumber.trim().isEmpty) {
@@ -42,6 +43,7 @@ class SurveyValidationService {
     _validateZones(layout, issues);
     _validateTables(layout, issues);
     _validateCanopies(layout, issues);
+    _validateNoInstallZones(layout, issues);
     _validateSpigots(layout, issues);
     _validateEntrances(layout, issues);
     _validateDistances(layout, issues);
@@ -88,6 +90,9 @@ class SurveyValidationService {
     }
     if (_hasDuplicates(layout.spigots.map((item) => item.key))) {
       issues.add('Two or more spigots occupy the same grid intersection.');
+    }
+    if (_hasDuplicates(layout.noInstallZoneCells.map((item) => item.key))) {
+      issues.add('Two or more no-install cells occupy the same grid cell.');
     }
   }
 
@@ -194,6 +199,19 @@ class SurveyValidationService {
     }
   }
 
+  void _validateNoInstallZones(
+    SurveyMapModel layout,
+    Set<String> issues,
+  ) {
+    for (final cell in layout.noInstallZoneCells) {
+      final coordinate = GridCoordinate(row: cell.row, column: cell.column);
+      if (!MapGeometry.canvasContainsCell(layout, coordinate) ||
+          !layout.roomBounds.containsCell(coordinate)) {
+        issues.add('No-install cells must stay inside the room and canvas.');
+      }
+    }
+  }
+
   void _validateEntrances(SurveyMapModel layout, Set<String> issues) {
     for (final entrance in layout.entrances) {
       final error = MapGeometry.entrancePlacementError(
@@ -217,7 +235,10 @@ class SurveyValidationService {
       }
       final cells = MapGeometry.cellsForDistance(distance, layout);
       if (cells.isEmpty) {
-        issues.add('A distance is disconnected from its saved table/wall endpoints.');
+        issues.add(
+          'A distance is disconnected from its saved table, canopy, or wall '
+          'endpoints, or crosses a no-install zone.',
+        );
         continue;
       }
       if (cells.any(occupied.contains)) {

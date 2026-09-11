@@ -52,7 +52,7 @@ class ProductionSummaryCard extends StatelessWidget {
       ),
       (
         'Max canopy height',
-        _optionalNumber(metrics.maxCanopyHeightInches),
+        _number(metrics.maxCanopyHeightInches),
         'inches',
       ),
     ];

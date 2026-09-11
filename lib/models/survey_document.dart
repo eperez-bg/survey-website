@@ -2,7 +2,7 @@
 //
 // Responsibility:
 // Owns one uploaded survey JSON document. It preserves every unknown field,
-// exposes the current schema-9 map as typed read models, and performs safe raw
+// exposes supported schema 9-11 maps as typed read models, and performs safe raw
 // mutations for admin edits.
 //
 // Why both raw and typed data:
@@ -19,6 +19,9 @@ import 'editor_result.dart';
 import 'survey_map_model.dart';
 
 class SurveyDocument {
+  static const int minimumSupportedSchemaVersion = 9;
+  static const int currentSupportedSchemaVersion = 11;
+
   Map<String, dynamic> _raw;
   SurveyMapModel? _mapCache;
 
@@ -46,6 +49,9 @@ class SurveyDocument {
   SurveyMapModel get mapData => _mapCache ??= SurveyMapModel.fromJson(layout);
 
   int get schemaVersion => nullableInt(_raw['schemaVersion']) ?? 1;
+  bool get hasSupportedSchema =>
+      schemaVersion >= minimumSupportedSchemaVersion &&
+      schemaVersion <= currentSupportedSchemaVersion;
   String get storeNumber => nullableString(storeInfo['storeNumber']) ?? 'Unknown';
   String get stateCode => nullableString(storeInfo['stateCode']) ?? '';
   String get city => nullableString(storeInfo['city']) ?? '';
@@ -77,6 +83,8 @@ class SurveyDocument {
   List<Map<String, dynamic>> get rawZones => mapListValue(layout['zoneList']);
   List<Map<String, dynamic>> get rawCanopyCells =>
       mapListValue(layout['canopyCellList']);
+  List<Map<String, dynamic>> get rawNoInstallZoneCells =>
+      mapListValue(layout['noInstallZoneCellList']);
   List<Map<String, dynamic>> get rawSpigots =>
       mapListValue(layout['spigotList']);
   List<Map<String, dynamic>> get rawDistances =>

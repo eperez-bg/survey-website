@@ -1,0 +1,106 @@
+{
+  "surveyId": "schema-11-regression-fixture",
+  "schemaVersion": 11,
+  "status": "completed",
+  "storeInfo": {
+    "storeNumber": "1100",
+    "city": "Chicago",
+    "stateCode": "IL",
+    "picName": "Test Manager"
+  },
+  "surveyorInfo": {
+    "surveyorName": "Test Surveyor",
+    "surveyorCompany": "Survey Operations"
+  },
+  "gardenCenterLayout": {
+    "canvasRows": 20,
+    "canvasColumns": 20,
+    "roomBounds": {
+      "topRow": 1,
+      "leftColumn": 1,
+      "widthCells": 18,
+      "heightCells": 18
+    },
+    "layoutTableList": [
+      {
+        "tableId": "table-a",
+        "pairId": "pair-1",
+        "zoneId": "zone-1",
+        "topRow": 9,
+        "leftColumn": 4,
+        "tableKind": "normal",
+        "orientation": "horizontal"
+      },
+      {
+        "tableId": "table-b",
+        "pairId": "pair-1",
+        "zoneId": "zone-1",
+        "topRow": 11,
+        "leftColumn": 4,
+        "tableKind": "normal",
+        "orientation": "horizontal"
+      }
+    ],
+    "zoneList": [
+      {
+        "zoneId": "zone-1",
+        "label": "Zone 1",
+        "colorHex": "#22C55E"
+      }
+    ],
+    "canopyCellList": [
+      {
+        "row": 4,
+        "column": 6,
+        "heightInches": 120.0,
+        "lengthInches": 120.0,
+        "widthInches": 120.0
+      }
+    ],
+    "noInstallZoneCellList": [
+      {
+        "row": 6,
+        "column": 12
+      },
+      {
+        "row": 6,
+        "column": 13
+      }
+    ],
+    "spigotList": [
+      {
+        "rowLine": 1,
+        "columnLine": 2,
+        "pressurePsi": 55.0
+      }
+    ],
+    "distanceList": [
+      {
+        "distanceId": "canopy-to-table",
+        "measuredDistance": 65.0,
+        "measurementUnit": "inches",
+        "start": {
+          "type": "canopy",
+          "row": 4,
+          "column": 6,
+          "edgeSide": "bottom"
+        },
+        "end": {
+          "type": "table",
+          "tableId": "table-a",
+          "edgeSide": "top",
+          "offsetCells": 2
+        }
+      }
+    ],
+    "entranceList": [
+      {
+        "entranceId": "entrance-1",
+        "wallSide": "bottom",
+        "offsetCells": 10,
+        "widthCells": 3,
+        "clearanceDepthCells": 2
+      }
+    ]
+  }
+}

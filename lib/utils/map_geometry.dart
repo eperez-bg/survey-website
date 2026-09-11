@@ -1,8 +1,8 @@
 // map_geometry.dart
 //
 // Responsibility:
-// Rebuilds saved schema-9 distance cells and applies the same collision rules
-// used by the Flutter field app. It has no UI or storage dependencies.
+// Rebuilds saved schema 9-11 distance cells and applies the same collision
+// rules used by the Flutter field app. It has no UI or storage dependencies.
 
 import 'dart:math' as math;
 
@@ -61,7 +61,8 @@ class MapGeometry {
           final cells = _line(startCell, endCell, axis);
           if (cells.any(
             (cell) => !canvasContainsCell(layout, cell) ||
-                tableAt(layout, cell.row, cell.column) != null,
+                tableAt(layout, cell.row, cell.column) != null ||
+                isNoInstallZoneCell(layout, cell),
           )) {
             continue;
           }
@@ -327,6 +328,28 @@ class MapGeometry {
     return null;
   }
 
+  static CanopyCellModel? canopyAt(
+    SurveyMapModel layout,
+    int row,
+    int column,
+  ) {
+    for (final canopy in layout.canopyCells) {
+      if (canopy.row == row && canopy.column == column) {
+        return canopy;
+      }
+    }
+    return null;
+  }
+
+  static bool isNoInstallZoneCell(
+    SurveyMapModel layout,
+    GridCoordinate cell,
+  ) {
+    return layout.noInstallZoneCells.any(
+      (blocked) => blocked.row == cell.row && blocked.column == cell.column,
+    );
+  }
+
   static List<GridCoordinate> _line(
     GridCoordinate start,
     GridCoordinate end,
@@ -374,6 +397,12 @@ class MapGeometry {
         start.tableId == end.tableId) {
       return null;
     }
+    if (start is CanopyDistanceEndpointModel &&
+        end is CanopyDistanceEndpointModel &&
+        start.row == end.row &&
+        start.column == end.column) {
+      return null;
+    }
     return _ResolvedDistance(start, end);
   }
 
@@ -401,12 +430,20 @@ class MapGeometry {
         );
       }
       final table = tableAt(layout, cell.row, cell.column - 1);
-      return table == null
+      if (table != null) {
+        return TableDistanceEndpointModel(
+          tableId: table.tableId,
+          edgeSide: EdgeSide.right,
+          offsetCells: cell.row - table.topRow,
+        );
+      }
+      final canopy = canopyAt(layout, cell.row, cell.column - 1);
+      return canopy == null
           ? null
-          : TableDistanceEndpointModel(
-              tableId: table.tableId,
+          : CanopyDistanceEndpointModel(
+              row: canopy.row,
+              column: canopy.column,
               edgeSide: EdgeSide.right,
-              offsetCells: cell.row - table.topRow,
             );
     }
 
@@ -427,12 +464,20 @@ class MapGeometry {
       );
     }
     final table = tableAt(layout, cell.row - 1, cell.column);
-    return table == null
+    if (table != null) {
+      return TableDistanceEndpointModel(
+        tableId: table.tableId,
+        edgeSide: EdgeSide.bottom,
+        offsetCells: cell.column - table.leftColumn,
+      );
+    }
+    final canopy = canopyAt(layout, cell.row - 1, cell.column);
+    return canopy == null
         ? null
-        : TableDistanceEndpointModel(
-            tableId: table.tableId,
+        : CanopyDistanceEndpointModel(
+            row: canopy.row,
+            column: canopy.column,
             edgeSide: EdgeSide.bottom,
-            offsetCells: cell.column - table.leftColumn,
           );
   }
 
@@ -460,12 +505,20 @@ class MapGeometry {
         );
       }
       final table = tableAt(layout, cell.row, cell.column + 1);
-      return table == null
+      if (table != null) {
+        return TableDistanceEndpointModel(
+          tableId: table.tableId,
+          edgeSide: EdgeSide.left,
+          offsetCells: cell.row - table.topRow,
+        );
+      }
+      final canopy = canopyAt(layout, cell.row, cell.column + 1);
+      return canopy == null
           ? null
-          : TableDistanceEndpointModel(
-              tableId: table.tableId,
+          : CanopyDistanceEndpointModel(
+              row: canopy.row,
+              column: canopy.column,
               edgeSide: EdgeSide.left,
-              offsetCells: cell.row - table.topRow,
             );
     }
 
@@ -486,12 +539,20 @@ class MapGeometry {
       );
     }
     final table = tableAt(layout, cell.row + 1, cell.column);
-    return table == null
+    if (table != null) {
+      return TableDistanceEndpointModel(
+        tableId: table.tableId,
+        edgeSide: EdgeSide.top,
+        offsetCells: cell.column - table.leftColumn,
+      );
+    }
+    final canopy = canopyAt(layout, cell.row + 1, cell.column);
+    return canopy == null
         ? null
-        : TableDistanceEndpointModel(
-            tableId: table.tableId,
+        : CanopyDistanceEndpointModel(
+            row: canopy.row,
+            column: canopy.column,
             edgeSide: EdgeSide.top,
-            offsetCells: cell.column - table.leftColumn,
           );
   }
 
@@ -531,6 +592,32 @@ class MapGeometry {
             GridCoordinate(row: row, column: room.leftColumn - 1),
           ];
       }
+    }
+
+    if (endpoint is CanopyDistanceEndpointModel) {
+      if (canopyAt(layout, endpoint.row, endpoint.column) == null) {
+        return const [];
+      }
+      return [
+        switch (endpoint.edgeSide) {
+          EdgeSide.top => GridCoordinate(
+              row: endpoint.row - 1,
+              column: endpoint.column,
+            ),
+          EdgeSide.right => GridCoordinate(
+              row: endpoint.row,
+              column: endpoint.column + 1,
+            ),
+          EdgeSide.bottom => GridCoordinate(
+              row: endpoint.row + 1,
+              column: endpoint.column,
+            ),
+          EdgeSide.left => GridCoordinate(
+              row: endpoint.row,
+              column: endpoint.column - 1,
+            ),
+        },
+      ];
     }
 
     final tableEndpoint = endpoint as TableDistanceEndpointModel;

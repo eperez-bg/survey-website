@@ -1,8 +1,8 @@
 // survey_map_painter.dart
 //
 // Responsibility:
-// Draws the schema-9 map with the same coordinate meanings and visual layer
-// order as the field app. The same painter is reused for browser and PDF output.
+// Draws supported schema 9-11 maps with the same coordinate meanings and visual
+// layer order as the field app. Browser and PDF output reuse this painter.
 
 import 'dart:math' as math;
 
@@ -42,6 +42,7 @@ class SurveyMapPainter extends CustomPainter {
     _paintBackgroundAndRoom(canvas, size, layout);
     if (showGrid) _paintGrid(canvas, size, layout);
     _paintCanopy(canvas, layout);
+    _paintNoInstallZones(canvas, layout);
     _paintTables(canvas, layout);
     _paintDistances(canvas, layout);
     _paintWallsAndEntrances(canvas, layout);
@@ -120,6 +121,33 @@ class SurveyMapPainter extends CustomPainter {
         foreground: const Color(0xFF713F12),
         maxWidth: math.max(30.0, rect.width - 4),
       );
+    }
+  }
+
+  void _paintNoInstallZones(Canvas canvas, SurveyMapModel layout) {
+    final fill = Paint()
+      ..color = const Color(0x66EF4444)
+      ..style = PaintingStyle.fill;
+    final border = Paint()
+      ..color = const Color(0xFFB91C1C)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = math.max(1.0, cellSize * 0.055);
+    final hatch = Paint()
+      ..color = const Color(0x99B91C1C)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = math.max(0.75, cellSize * 0.035);
+
+    for (final cell in layout.noInstallZoneCells) {
+      final rect = Rect.fromLTWH(
+        cell.column * cellSize,
+        cell.row * cellSize,
+        cellSize,
+        cellSize,
+      );
+      canvas.drawRect(rect, fill);
+      canvas.drawRect(rect.deflate(border.strokeWidth / 2), border);
+      canvas.drawLine(rect.topLeft, rect.bottomRight, hatch);
+      canvas.drawLine(rect.topRight, rect.bottomLeft, hatch);
     }
   }
 

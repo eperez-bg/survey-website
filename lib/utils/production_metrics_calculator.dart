@@ -73,11 +73,10 @@ class ProductionMetricsCalculator {
         : pressureValues.fold<double>(0, (total, value) => total + value) /
             pressureValues.length;
 
-    double? maxCanopyHeight;
+    var maxCanopyHeight = 0.0;
     for (final canopyCell in map.canopyCells) {
       final height = canopyCell.heightInches;
-      if (height != null &&
-          (maxCanopyHeight == null || height > maxCanopyHeight)) {
+      if (height != null && height > maxCanopyHeight) {
         maxCanopyHeight = height;
       }
     }

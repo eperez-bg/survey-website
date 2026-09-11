@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:survey_admin_web/models/survey_document.dart';
+import 'package:survey_admin_web/models/survey_map_model.dart';
 
 void main() {
   test('schema-9 edits preserve unknown JSON fields', () {
@@ -84,6 +85,22 @@ void main() {
     final rawRamp = survey.rawDistances.single;
     expect(rawRamp['measuredGap'], 84);
     expect(rawRamp['measurementUnit'], 'inches');
+  });
+
+  test('schema-11 edits preserve no-install cells and canopy endpoints', () {
+    final survey = SurveyDocument.fromJsonString(
+      File('assets/sample_survey_v11.json').readAsStringSync(),
+    );
+    final originalNoInstallCells = survey.rawNoInstallZoneCells;
+
+    final result = survey.setDistanceMeasurement('canopy-to-table', 72);
+
+    expect(result.succeeded, isTrue);
+    expect(survey.rawNoInstallZoneCells, originalNoInstallCells);
+    expect(
+      survey.mapData.distances.single.start,
+      isA<CanopyDistanceEndpointModel>(),
+    );
   });
 }
 
