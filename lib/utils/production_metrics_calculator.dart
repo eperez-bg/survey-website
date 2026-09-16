@@ -7,12 +7,13 @@
 import '../models/production_metrics.dart';
 import '../models/survey_document.dart';
 import '../models/survey_map_model.dart';
+import 'table_group_calculator.dart';
 
 class ProductionMetricsCalculator {
   final double rampUnitInches;
 
   const ProductionMetricsCalculator({this.rampUnitInches = 46})
-      : assert(rampUnitInches > 0);
+    : assert(rampUnitInches > 0);
 
   ProductionMetrics calculate(SurveyDocument survey) {
     final map = survey.mapData;
@@ -20,6 +21,8 @@ class ProductionMetricsCalculator {
       for (final cell in map.canopyCells)
         GridCoordinate(row: cell.row, column: cell.column),
     };
+    final validZoneIds = map.zones.map((zone) => zone.zoneId).toSet();
+    final zonesUnderCanopy = <String>{};
     final logicalTables = <String, List<LayoutTableModel>>{};
 
     for (final table in map.tables) {
@@ -40,6 +43,15 @@ class ProductionMetricsCalculator {
       final isUnderCanopy = members.any(
         (table) => _tableOverlapsCanopy(table, canopyCoordinates),
       );
+
+      if (isUnderCanopy) {
+        for (final member in members) {
+          final zoneId = member.zoneId;
+          if (zoneId != null && validZoneIds.contains(zoneId)) {
+            zonesUnderCanopy.add(zoneId);
+          }
+        }
+      }
 
       switch (kind) {
         case TableKind.normal:
@@ -71,7 +83,7 @@ class ProductionMetricsCalculator {
     final averagePsi = pressureValues.isEmpty
         ? null
         : pressureValues.fold<double>(0, (total, value) => total + value) /
-            pressureValues.length;
+              pressureValues.length;
 
     var maxCanopyHeight = 0.0;
     for (final canopyCell in map.canopyCells) {
@@ -83,8 +95,7 @@ class ProductionMetricsCalculator {
 
     final rampCount = map.distances.fold<double>(
       0,
-      (total, distance) =>
-          total + (distance.measuredDistance / rampUnitInches),
+      (total, distance) => total + (distance.measuredDistance / rampUnitInches),
     );
 
     return ProductionMetrics(
@@ -97,7 +108,9 @@ class ProductionMetricsCalculator {
       spigotCount: map.spigots.length,
       averagePsi: averagePsi,
       rampCountAt46Inches: rampCount,
+      tableGroupCount: const TableGroupCalculator().countGroups(map.tables),
       zoneCount: map.zones.length,
+      zonesUnderCanopy: zonesUnderCanopy.length,
       maxCanopyHeightInches: maxCanopyHeight,
     );
   }

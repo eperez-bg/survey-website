@@ -14,14 +14,34 @@ void main() {
     expect(result.singleTablesOutsideCanopy, 0);
     expect(result.hangingBasketsOutsideCanopy, 2);
     expect(result.specialTablesOutsideCanopy, 1);
-    expect(result.tableCountUnderCanopy, 2);
-    expect(result.tableCountOutsideCanopy, 3);
-    expect(result.tableCount, 5);
+    expect(result.tableCountUnderCanopy, 1);
+    expect(result.tableCountOutsideCanopy, 2);
+    expect(result.tableCount, 3);
+    expect(result.specialTableCount, 2);
+    expect(result.tableGroupCount, 2);
     expect(result.spigotCount, 3);
     expect(result.averagePsi, 60);
     expect(result.rampCountAt46Inches, closeTo(1.5, 0.0001));
     expect(result.zoneCount, 2);
+    expect(result.zonesUnderCanopy, 1);
     expect(result.maxCanopyHeightInches, 132);
+  });
+
+  test('counts each zone under canopy once across multiple tables', () {
+    final json = _surveyJson();
+    final layout = json['gardenCenterLayout']! as Map<String, dynamic>;
+    layout['canopyCellList'] = [
+      _canopyCell(row: 2, column: 2),
+      _canopyCell(row: 4, column: 2),
+      _canopyCell(row: 10, column: 2),
+      _canopyCell(row: 19, column: 4),
+    ];
+
+    final result = const ProductionMetricsCalculator().calculate(
+      SurveyDocument(json),
+    );
+
+    expect(result.zonesUnderCanopy, 2);
   });
 
   test('uses blank PSI and zero max height when no canopy is present', () {
@@ -38,18 +58,25 @@ void main() {
     expect(result.maxCanopyHeightInches, 0);
     expect(result.tableCountUnderCanopy, 0);
     expect(result.tableCountOutsideCanopy, result.tableCount);
+    expect(result.zonesUnderCanopy, 0);
   });
+}
+
+Map<String, dynamic> _canopyCell({required int row, required int column}) {
+  return {
+    'row': row,
+    'column': column,
+    'heightInches': 96.0,
+    'lengthInches': 120.0,
+    'widthInches': 120.0,
+  };
 }
 
 Map<String, dynamic> _surveyJson() {
   return {
     'surveyId': 'production-metrics-test',
     'schemaVersion': 9,
-    'storeInfo': {
-      'storeNumber': '100',
-      'stateCode': 'IL',
-      'city': 'Chicago',
-    },
+    'storeInfo': {'storeNumber': '100', 'stateCode': 'IL', 'city': 'Chicago'},
     'surveyorInfo': <String, dynamic>{},
     'gardenCenterLayout': {
       'canvasRows': 30,
@@ -145,11 +172,7 @@ Map<String, dynamic> _surveyJson() {
           'distanceId': 'distance-46',
           'measuredDistance': 46.0,
           'measurementUnit': 'inches',
-          'start': {
-            'type': 'wall',
-            'wallSide': 'left',
-            'offsetCells': 2,
-          },
+          'start': {'type': 'wall', 'wallSide': 'left', 'offsetCells': 2},
           'end': {
             'type': 'table',
             'tableId': 'normal-a',
@@ -167,11 +190,7 @@ Map<String, dynamic> _surveyJson() {
             'edgeSide': 'right',
             'offsetCells': 0,
           },
-          'end': {
-            'type': 'wall',
-            'wallSide': 'right',
-            'offsetCells': 10,
-          },
+          'end': {'type': 'wall', 'wallSide': 'right', 'offsetCells': 10},
         },
       ],
       'entranceList': <Map<String, dynamic>>[],

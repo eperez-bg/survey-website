@@ -21,6 +21,7 @@ class ExcelExportService {
     'State',
     'City',
     'Table Count',
+    'Table Group Count',
     'Table Count Under Canopy',
     'Single Tables under Canopy',
     'Hanging Baskets under Canopy',
@@ -32,6 +33,7 @@ class ExcelExportService {
     'Average PSI',
     'Ramp count per distance (46in)',
     'Zone Count',
+    'Zones under canopy',
     'Max canopy height (in.)',
   ];
 
@@ -76,6 +78,7 @@ class ExcelExportService {
       survey.stateCode,
       survey.city,
       metrics.tableCount,
+      metrics.tableGroupCount,
       metrics.tableCountUnderCanopy,
       metrics.singleTablesUnderCanopy,
       metrics.hangingBasketsUnderCanopy,
@@ -87,6 +90,7 @@ class ExcelExportService {
       metrics.averagePsi,
       metrics.rampCountAt46Inches,
       metrics.zoneCount,
+      metrics.zonesUnderCanopy,
       metrics.maxCanopyHeightInches,
     ];
   }

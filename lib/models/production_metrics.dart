@@ -2,7 +2,8 @@
 //
 // Responsibility:
 // Represents the derived production values used by the admin summary and
-// exports. Computed totals stay as getters so category counts cannot disagree.
+// exports. Aggregate table totals intentionally exclude custom tables while
+// retaining their detail counts for reporting.
 
 class ProductionMetrics {
   final int singleTablesUnderCanopy;
@@ -14,7 +15,9 @@ class ProductionMetrics {
   final int spigotCount;
   final double? averagePsi;
   final double rampCountAt46Inches;
+  final int tableGroupCount;
   final int zoneCount;
+  final int zonesUnderCanopy;
   final double maxCanopyHeightInches;
 
   const ProductionMetrics({
@@ -27,19 +30,17 @@ class ProductionMetrics {
     required this.spigotCount,
     required this.averagePsi,
     required this.rampCountAt46Inches,
+    required this.tableGroupCount,
     required this.zoneCount,
+    required this.zonesUnderCanopy,
     required this.maxCanopyHeightInches,
   });
 
   int get tableCountUnderCanopy =>
-      singleTablesUnderCanopy +
-      hangingBasketsUnderCanopy +
-      specialTablesUnderCanopy;
+      singleTablesUnderCanopy + hangingBasketsUnderCanopy;
 
   int get tableCountOutsideCanopy =>
-      singleTablesOutsideCanopy +
-      hangingBasketsOutsideCanopy +
-      specialTablesOutsideCanopy;
+      singleTablesOutsideCanopy + hangingBasketsOutsideCanopy;
 
   int get tableCount => tableCountUnderCanopy + tableCountOutsideCanopy;
 
@@ -53,18 +54,20 @@ class ProductionMetrics {
       specialTablesUnderCanopy + specialTablesOutsideCanopy;
 
   Map<String, Object?> toJson() => {
-        'tableCount': tableCount,
-        'tableCountUnderCanopy': tableCountUnderCanopy,
-        'singleTablesUnderCanopy': singleTablesUnderCanopy,
-        'hangingBasketsUnderCanopy': hangingBasketsUnderCanopy,
-        'specialTablesUnderCanopy': specialTablesUnderCanopy,
-        'singleTablesOutsideCanopy': singleTablesOutsideCanopy,
-        'hangingBasketsOutsideCanopy': hangingBasketsOutsideCanopy,
-        'specialTablesOutsideCanopy': specialTablesOutsideCanopy,
-        'spigotCount': spigotCount,
-        'averagePsi': averagePsi,
-        'rampCountAt46Inches': rampCountAt46Inches,
-        'zoneCount': zoneCount,
-        'maxCanopyHeightInches': maxCanopyHeightInches,
-      };
+    'tableCount': tableCount,
+    'tableCountUnderCanopy': tableCountUnderCanopy,
+    'singleTablesUnderCanopy': singleTablesUnderCanopy,
+    'hangingBasketsUnderCanopy': hangingBasketsUnderCanopy,
+    'specialTablesUnderCanopy': specialTablesUnderCanopy,
+    'singleTablesOutsideCanopy': singleTablesOutsideCanopy,
+    'hangingBasketsOutsideCanopy': hangingBasketsOutsideCanopy,
+    'specialTablesOutsideCanopy': specialTablesOutsideCanopy,
+    'spigotCount': spigotCount,
+    'averagePsi': averagePsi,
+    'rampCountAt46Inches': rampCountAt46Inches,
+    'tableGroupCount': tableGroupCount,
+    'zoneCount': zoneCount,
+    'zonesUnderCanopy': zonesUnderCanopy,
+    'maxCanopyHeightInches': maxCanopyHeightInches,
+  };
 }

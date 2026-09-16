@@ -31,8 +31,36 @@ void main() {
       stores.rows.first.map((cell) => cell?.value.toString()).toList(),
       ExcelExportService.productionHeaders,
     );
+    expect(
+      ExcelExportService.productionHeaders,
+      containsAllInOrder([
+        'Table Count',
+        'Table Group Count',
+        'Table Count Under Canopy',
+      ]),
+    );
+    expect(
+      ExcelExportService.productionHeaders,
+      containsAllInOrder([
+        'Zone Count',
+        'Zones under canopy',
+        'Max canopy height (in.)',
+      ]),
+    );
     expect(stores.rows[1][3]?.value, isA<IntCellValue>());
-    expect((stores.rows[1][3]?.value as IntCellValue).value, 4);
+    expect((stores.rows[1][3]?.value as IntCellValue).value, 3);
+    final tableGroupColumn = ExcelExportService.productionHeaders.indexOf(
+      'Table Group Count',
+    );
+    final tableGroupCount = stores.rows[1][tableGroupColumn]?.value;
+    expect(tableGroupCount, isA<IntCellValue>());
+    expect((tableGroupCount! as IntCellValue).value, metrics.tableGroupCount);
+    final zonesUnderCanopyColumn = ExcelExportService.productionHeaders.indexOf(
+      'Zones under canopy',
+    );
+    final zonesUnderCanopy = stores.rows[1][zonesUnderCanopyColumn]?.value;
+    expect(zonesUnderCanopy, isA<IntCellValue>());
+    expect((zonesUnderCanopy! as IntCellValue).value, metrics.zonesUnderCanopy);
     for (var column = 3; column < stores.maxColumns; column += 1) {
       expect(stores.rows[1][column]?.value, isNot(isA<TextCellValue>()));
     }
@@ -141,7 +169,10 @@ void main() {
       objectPath: 'test/no-canopy.json',
     );
     final stores = Excel.decodeBytes(bytes).tables['Stores']!;
-    final maxHeight = stores.rows[1][15]?.value;
+    final maxHeightColumn = ExcelExportService.productionHeaders.indexOf(
+      'Max canopy height (in.)',
+    );
+    final maxHeight = stores.rows[1][maxHeightColumn]?.value;
 
     expect(maxHeight, isNot(isA<TextCellValue>()));
     expect(maxHeight.toString(), '0');

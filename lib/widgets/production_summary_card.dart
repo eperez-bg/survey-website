@@ -18,7 +18,12 @@ class ProductionSummaryCard extends StatelessWidget {
       (
         'Table count',
         metrics.tableCount.toString(),
-        'all production tables',
+        'custom tables excluded',
+      ),
+      (
+        'Table groups',
+        metrics.tableGroupCount.toString(),
+        'edge-connected tables',
       ),
       (
         'Under canopy',
@@ -32,8 +37,8 @@ class ProductionSummaryCard extends StatelessWidget {
       ),
       (
         'Table mix',
-        '${metrics.singleTableCount} / ${metrics.hangingBasketCount} / ${metrics.specialTableCount}',
-        'single / hanging / special',
+        '${metrics.singleTableCount} / ${metrics.hangingBasketCount}',
+        'single / hanging',
       ),
       (
         'Ramp count',
