@@ -8,6 +8,7 @@
 
 import 'dart:math' as math;
 
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 
 import '../models/editor_result.dart';
@@ -177,39 +178,43 @@ class _SurveyMapEditorState extends State<SurveyMapEditor> {
                     math.max(1.0, constraints.maxHeight),
                   );
                   _scheduleInitialFit(viewport, mapSize);
-                  return InteractiveViewer(
-                    transformationController: _transformationController,
-                    constrained: false,
-                    boundaryMargin: const EdgeInsets.all(500),
-                    minScale: 0.05,
-                    maxScale: 4,
-                    panEnabled: !_editMode,
-                    scaleEnabled: true,
-                    child: GestureDetector(
-                      behavior: HitTestBehavior.opaque,
-                      onTapUp: _handleTap,
-                      onPanStart: _editMode ? _handlePanStart : null,
-                      onPanUpdate: _editMode ? _handlePanUpdate : null,
-                      onPanEnd: _editMode ? _handlePanEnd : null,
-                      onPanCancel: _editMode ? _cancelDrag : null,
-                      child: CustomPaint(
-                        size: mapSize,
-                        painter: SurveyMapPainter(
-                          survey: widget.survey,
-                          cellSize: _cellSize,
-                          selectedTableIds: selectedTableIds,
-                          selectedDistanceId:
-                              _selection?.kind == _SelectionKind.distance
-                                  ? _selection!.id
-                                  : null,
-                          selectedEntranceId:
-                              _selection?.kind == _SelectionKind.entrance
-                                  ? _selection!.id
-                                  : null,
-                          selectedSpigotKey:
-                              _selection?.kind == _SelectionKind.spigot
-                                  ? _selection!.id
-                                  : null,
+                  return Listener(
+                    behavior: HitTestBehavior.opaque,
+                    onPointerSignal: _claimMapPointerSignal,
+                    child: InteractiveViewer(
+                      transformationController: _transformationController,
+                      constrained: false,
+                      boundaryMargin: const EdgeInsets.all(500),
+                      minScale: 0.05,
+                      maxScale: 4,
+                      panEnabled: !_editMode,
+                      scaleEnabled: true,
+                      child: GestureDetector(
+                        behavior: HitTestBehavior.opaque,
+                        onTapUp: _handleTap,
+                        onPanStart: _editMode ? _handlePanStart : null,
+                        onPanUpdate: _editMode ? _handlePanUpdate : null,
+                        onPanEnd: _editMode ? _handlePanEnd : null,
+                        onPanCancel: _editMode ? _cancelDrag : null,
+                        child: CustomPaint(
+                          size: mapSize,
+                          painter: SurveyMapPainter(
+                            survey: widget.survey,
+                            cellSize: _cellSize,
+                            selectedTableIds: selectedTableIds,
+                            selectedDistanceId:
+                                _selection?.kind == _SelectionKind.distance
+                                    ? _selection!.id
+                                    : null,
+                            selectedEntranceId:
+                                _selection?.kind == _SelectionKind.entrance
+                                    ? _selection!.id
+                                    : null,
+                            selectedSpigotKey:
+                                _selection?.kind == _SelectionKind.spigot
+                                    ? _selection!.id
+                                    : null,
+                          ),
                         ),
                       ),
                     ),
@@ -262,6 +267,13 @@ class _SurveyMapEditorState extends State<SurveyMapEditor> {
     _transformationController.value = Matrix4.identity()
       ..translate(dx, dy)
       ..scale(scale);
+  }
+
+  /// Claims mouse-wheel input inside the map before the surrounding page can
+  /// scroll. InteractiveViewer still receives the same event and owns zooming.
+  void _claimMapPointerSignal(PointerSignalEvent event) {
+    if (event is! PointerScrollEvent) return;
+    GestureBinding.instance.pointerSignalResolver.register(event, (_) {});
   }
 
   void _handleTap(TapUpDetails details) {
