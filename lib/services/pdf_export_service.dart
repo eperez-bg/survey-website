@@ -71,7 +71,7 @@ class PdfExportService {
                     ),
                     _metric(
                       '46-in. ramps',
-                      _number(bundle.metrics.rampCountAt46Inches),
+                      bundle.metrics.rampCountAt46Inches,
                     ),
                     _metric('Spigots', bundle.metrics.spigotCount),
                     _metric(

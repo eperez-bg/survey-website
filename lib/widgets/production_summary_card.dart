@@ -42,8 +42,8 @@ class ProductionSummaryCard extends StatelessWidget {
       ),
       (
         'Ramp count',
-        _number(metrics.rampCountAt46Inches),
-        'each distance ÷ 46 in.',
+        metrics.rampCountAt46Inches.toString(),
+        'each distance ÷ 46, rounded up',
       ),
       (
         'Spigots',

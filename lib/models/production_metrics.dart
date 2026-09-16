@@ -14,7 +14,8 @@ class ProductionMetrics {
   final int specialTablesOutsideCanopy;
   final int spigotCount;
   final double? averagePsi;
-  final double rampCountAt46Inches;
+  final int rampSectionsCount;
+  final int rampCountAt46Inches;
   final int tableGroupCount;
   final int zoneCount;
   final int zonesUnderCanopy;
@@ -29,6 +30,7 @@ class ProductionMetrics {
     required this.specialTablesOutsideCanopy,
     required this.spigotCount,
     required this.averagePsi,
+    required this.rampSectionsCount,
     required this.rampCountAt46Inches,
     required this.tableGroupCount,
     required this.zoneCount,
@@ -64,6 +66,7 @@ class ProductionMetrics {
     'specialTablesOutsideCanopy': specialTablesOutsideCanopy,
     'spigotCount': spigotCount,
     'averagePsi': averagePsi,
+    'rampSectionsCount': rampSectionsCount,
     'rampCountAt46Inches': rampCountAt46Inches,
     'tableGroupCount': tableGroupCount,
     'zoneCount': zoneCount,

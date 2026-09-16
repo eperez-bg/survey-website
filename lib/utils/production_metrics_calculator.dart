@@ -93,9 +93,10 @@ class ProductionMetricsCalculator {
       }
     }
 
-    final rampCount = map.distances.fold<double>(
+    final rampCount = map.distances.fold<int>(
       0,
-      (total, distance) => total + (distance.measuredDistance / rampUnitInches),
+      (total, distance) =>
+          total + (distance.measuredDistance / rampUnitInches).ceil(),
     );
 
     return ProductionMetrics(
@@ -107,6 +108,7 @@ class ProductionMetricsCalculator {
       specialTablesOutsideCanopy: specialOutside,
       spigotCount: map.spigots.length,
       averagePsi: averagePsi,
+      rampSectionsCount: map.distances.length,
       rampCountAt46Inches: rampCount,
       tableGroupCount: const TableGroupCalculator().countGroups(map.tables),
       zoneCount: map.zones.length,
