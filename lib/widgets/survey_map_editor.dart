@@ -1,10 +1,9 @@
 // survey_map_editor.dart
 //
 // Responsibility:
-// Owns browser-only map interaction: fit/pan/zoom, fixture selection, safe
-// pair-aware table dragging, and small editors for supported schema 9-11 maps.
-// Geometry and mutations stay in utilities/models so this widget never guesses
-// how the mobile survey format works.
+// Owns browser-only map viewing: fit/pan/zoom and fixture inspection. Legacy
+// inline edit callbacks remain available, but the dashboard now uses read-only
+// mode and sends all map mutations to the dedicated full-screen editor.
 
 import 'dart:math' as math;
 
@@ -30,29 +29,43 @@ typedef DeleteHandler = EditorResult Function(String id);
 
 class SurveyMapEditor extends StatefulWidget {
   final SurveyDocument survey;
-  final TableMoveHandler onTableMoved;
-  final TableZoneHandler onTableZoneChanged;
-  final MeasurementHandler onDistanceMeasurementChanged;
-  final MeasurementHandler onSpigotPressureChanged;
-  final EntranceHandler onEntranceChanged;
-  final DeleteHandler onTableDeleted;
-  final DeleteHandler onDistanceDeleted;
-  final DeleteHandler onEntranceDeleted;
-  final DeleteHandler onSpigotDeleted;
+  final bool readOnly;
+  final TableMoveHandler? onTableMoved;
+  final TableZoneHandler? onTableZoneChanged;
+  final MeasurementHandler? onDistanceMeasurementChanged;
+  final MeasurementHandler? onSpigotPressureChanged;
+  final EntranceHandler? onEntranceChanged;
+  final DeleteHandler? onTableDeleted;
+  final DeleteHandler? onDistanceDeleted;
+  final DeleteHandler? onEntranceDeleted;
+  final DeleteHandler? onSpigotDeleted;
 
   const SurveyMapEditor({
     super.key,
     required this.survey,
-    required this.onTableMoved,
-    required this.onTableZoneChanged,
-    required this.onDistanceMeasurementChanged,
-    required this.onSpigotPressureChanged,
-    required this.onEntranceChanged,
-    required this.onTableDeleted,
-    required this.onDistanceDeleted,
-    required this.onEntranceDeleted,
-    required this.onSpigotDeleted,
-  });
+    this.readOnly = false,
+    this.onTableMoved,
+    this.onTableZoneChanged,
+    this.onDistanceMeasurementChanged,
+    this.onSpigotPressureChanged,
+    this.onEntranceChanged,
+    this.onTableDeleted,
+    this.onDistanceDeleted,
+    this.onEntranceDeleted,
+    this.onSpigotDeleted,
+  }) : assert(
+          readOnly ||
+              (onTableMoved != null &&
+                  onTableZoneChanged != null &&
+                  onDistanceMeasurementChanged != null &&
+                  onSpigotPressureChanged != null &&
+                  onEntranceChanged != null &&
+                  onTableDeleted != null &&
+                  onDistanceDeleted != null &&
+                  onEntranceDeleted != null &&
+                  onSpigotDeleted != null),
+          'Editing mode requires every mutation callback.',
+        );
 
   @override
   State<SurveyMapEditor> createState() => _SurveyMapEditorState();
@@ -129,24 +142,25 @@ class _SurveyMapEditorState extends State<SurveyMapEditor> {
                         fontWeight: FontWeight.w800,
                       ),
                 ),
-                SegmentedButton<bool>(
-                  segments: const [
-                    ButtonSegment<bool>(
-                      value: false,
-                      icon: Icon(Icons.pan_tool_alt_outlined),
-                      label: Text('View / pan'),
-                    ),
-                    ButtonSegment<bool>(
-                      value: true,
-                      icon: Icon(Icons.edit_location_alt_outlined),
-                      label: Text('Edit fixtures'),
-                    ),
-                  ],
-                  selected: {_editMode},
-                  onSelectionChanged: (values) {
-                    setState(() => _editMode = values.first);
-                  },
-                ),
+                if (!widget.readOnly)
+                  SegmentedButton<bool>(
+                    segments: const [
+                      ButtonSegment<bool>(
+                        value: false,
+                        icon: Icon(Icons.pan_tool_alt_outlined),
+                        label: Text('View / pan'),
+                      ),
+                      ButtonSegment<bool>(
+                        value: true,
+                        icon: Icon(Icons.edit_location_alt_outlined),
+                        label: Text('Edit fixtures'),
+                      ),
+                    ],
+                    selected: {_editMode},
+                    onSelectionChanged: (values) {
+                      setState(() => _editMode = values.first);
+                    },
+                  ),
                 OutlinedButton.icon(
                   onPressed: _lastViewport == null
                       ? null
@@ -158,7 +172,9 @@ class _SurveyMapEditorState extends State<SurveyMapEditor> {
                   _dragTableId != null
                       ? 'Release to move ${_dragRowDelta >= 0 ? '+' : ''}$_dragRowDelta rows, '
                           '${_dragColumnDelta >= 0 ? '+' : ''}$_dragColumnDelta columns.'
-                      : _editMode
+                      : widget.readOnly
+                          ? 'Scroll to zoom and drag to pan. Use Edit map for changes.'
+                          : _editMode
                           ? 'Select any fixture. Drag tables; paired tables move together.'
                           : 'Scroll to zoom and drag to pan. Click a fixture to inspect it.',
                   style: Theme.of(context).textTheme.bodySmall,
@@ -187,15 +203,23 @@ class _SurveyMapEditorState extends State<SurveyMapEditor> {
                       boundaryMargin: const EdgeInsets.all(500),
                       minScale: 0.05,
                       maxScale: 4,
-                      panEnabled: !_editMode,
+                      panEnabled: widget.readOnly || !_editMode,
                       scaleEnabled: true,
                       child: GestureDetector(
                         behavior: HitTestBehavior.opaque,
                         onTapUp: _handleTap,
-                        onPanStart: _editMode ? _handlePanStart : null,
-                        onPanUpdate: _editMode ? _handlePanUpdate : null,
-                        onPanEnd: _editMode ? _handlePanEnd : null,
-                        onPanCancel: _editMode ? _cancelDrag : null,
+                        onPanStart: !widget.readOnly && _editMode
+                            ? _handlePanStart
+                            : null,
+                        onPanUpdate: !widget.readOnly && _editMode
+                            ? _handlePanUpdate
+                            : null,
+                        onPanEnd: !widget.readOnly && _editMode
+                            ? _handlePanEnd
+                            : null,
+                        onPanCancel: !widget.readOnly && _editMode
+                            ? _cancelDrag
+                            : null,
                         child: CustomPaint(
                           size: mapSize,
                           painter: SurveyMapPainter(
@@ -224,17 +248,17 @@ class _SurveyMapEditorState extends State<SurveyMapEditor> {
             ),
           ),
           _MapLegend(layout: layout),
-          if (_selection != null) ...[
+          if (!widget.readOnly && _selection != null) ...[
             const Divider(height: 1),
             _SelectionInspector(
               key: ValueKey('${_selection!.kind.name}:${_selection!.id}'),
               survey: widget.survey,
               selection: _selection!,
-              onTableZoneChanged: widget.onTableZoneChanged,
+              onTableZoneChanged: widget.onTableZoneChanged!,
               onDistanceMeasurementChanged:
-                  widget.onDistanceMeasurementChanged,
-              onSpigotPressureChanged: widget.onSpigotPressureChanged,
-              onEntranceChanged: widget.onEntranceChanged,
+                  widget.onDistanceMeasurementChanged!,
+              onSpigotPressureChanged: widget.onSpigotPressureChanged!,
+              onEntranceChanged: widget.onEntranceChanged!,
               onDelete: _confirmDeleteSelection,
             ),
           ],
@@ -313,7 +337,7 @@ class _SurveyMapEditorState extends State<SurveyMapEditor> {
     _cancelDrag();
     if (tableId == null || startRow == null || startColumn == null) return;
     if (rowDelta == 0 && columnDelta == 0) return;
-    widget.onTableMoved(
+    widget.onTableMoved?.call(
       tableId,
       topRow: startRow + rowDelta,
       leftColumn: startColumn + columnDelta,
@@ -435,10 +459,10 @@ class _SurveyMapEditorState extends State<SurveyMapEditor> {
     if (!confirmed || !mounted) return;
 
     final result = switch (selection.kind) {
-      _SelectionKind.table => widget.onTableDeleted(selection.id),
-      _SelectionKind.distance => widget.onDistanceDeleted(selection.id),
-      _SelectionKind.entrance => widget.onEntranceDeleted(selection.id),
-      _SelectionKind.spigot => widget.onSpigotDeleted(selection.id),
+      _SelectionKind.table => widget.onTableDeleted!(selection.id),
+      _SelectionKind.distance => widget.onDistanceDeleted!(selection.id),
+      _SelectionKind.entrance => widget.onEntranceDeleted!(selection.id),
+      _SelectionKind.spigot => widget.onSpigotDeleted!(selection.id),
     };
     if (result.succeeded && mounted) {
       setState(() => _selection = null);

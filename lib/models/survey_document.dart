@@ -1,9 +1,9 @@
 // survey_document.dart
 //
 // Responsibility:
-// Owns one uploaded survey JSON document. It preserves every unknown field,
-// exposes supported schema 9-11 maps as typed read models, and performs safe raw
-// mutations for admin edits.
+// Owns one uploaded survey JSON document. It preserves unrelated root fields
+// and unknown layout-level metadata, exposes supported schema 9-12 maps as typed
+// read models, and performs safe raw mutations for admin edits.
 //
 // Why both raw and typed data:
 // - Raw JSON preservation prevents a newer mobile field from being deleted.
@@ -20,7 +20,7 @@ import 'survey_map_model.dart';
 
 class SurveyDocument {
   static const int minimumSupportedSchemaVersion = 9;
-  static const int currentSupportedSchemaVersion = 11;
+  static const int currentSupportedSchemaVersion = 12;
 
   Map<String, dynamic> _raw;
   SurveyMapModel? _mapCache;
@@ -118,6 +118,39 @@ class SurveyDocument {
       _mapCache = null;
       rethrow;
     }
+  }
+
+  /// Replaces only the map contract while preserving every unrelated survey
+  /// field and any unknown layout metadata from newer mobile builds.
+  ///
+  /// Editing migrates the document to the current schema because the supplied
+  /// layout is serialized with the current field-app model. The obsolete
+  /// `rampList` key is removed so a stale legacy list cannot compete with the
+  /// newly saved `distanceList`.
+  void replaceGardenCenterLayout(Map<String, dynamic> updatedLayout) {
+    final preservedLayout = deepCopyJsonMap(layout);
+    final replacement = deepCopyJsonMap(updatedLayout);
+    const currentLayoutKeys = <String>{
+      'canvasRows',
+      'canvasColumns',
+      'roomBounds',
+      'layoutTableList',
+      'zoneList',
+      'canopyCellList',
+      'noInstallZoneCellList',
+      'spigotList',
+      'distanceList',
+      'entranceList',
+    };
+
+    for (final key in currentLayoutKeys) {
+      preservedLayout[key] = replacement[key];
+    }
+    preservedLayout.remove('rampList');
+
+    _raw['gardenCenterLayout'] = preservedLayout;
+    _raw['schemaVersion'] = currentSupportedSchemaVersion;
+    _changed();
   }
 
   Map<String, dynamic>? rawTableById(String tableId) {

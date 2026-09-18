@@ -1,7 +1,7 @@
 // survey_map_model.dart
 //
 // Responsibility:
-// Represents the persisted map contracts used by survey-app schemas 9-11.
+// Represents the persisted map contracts used by survey-app schemas 9-12.
 // Parsing remains tolerant enough to display older ramp-based survey versions,
 // while supporting canopy distance endpoints and no-install zones from the
 // current schema.

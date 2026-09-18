@@ -10,6 +10,7 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 
 import '../config/app_config.dart';
+import '../map_editor/models/map_editor_models.dart';
 import '../models/editor_result.dart';
 import '../models/production_metrics.dart';
 import '../models/store_record.dart';
@@ -22,6 +23,7 @@ import '../services/file_download_service.dart';
 import '../services/pdf_export_service.dart';
 import '../services/survey_validation_service.dart';
 import '../utils/production_metrics_calculator.dart';
+import '../utils/map_editor_layout_adapter.dart';
 
 class SurveyAdminController extends ChangeNotifier {
   final SurveyStorageRepository repository;
@@ -277,33 +279,78 @@ class SurveyAdminController extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> saveCurrentSurveyAsNewVersion() async {
-    final survey = _currentSurvey;
-    final path = _currentObjectPath;
-    if (survey == null || path == null) {
-      return;
+  /// Validates the editor layout and uploads it as a new immutable object.
+  ///
+  /// The editor works on an isolated immutable layout. Nothing is applied to
+  /// dashboard state until validation and the Storage upload both succeed.
+  Future<EditorResult> saveCurrentSurveyLayoutAsNewVersion({
+    required String expectedSourceObjectPath,
+    required GardenCenterLayout layout,
+  }) async {
+    final current = _currentSurvey;
+    final currentPath = _currentObjectPath;
+    if (current == null || currentPath == null) {
+      const result = EditorResult.failure('No survey is open.');
+      _setError(result.message!);
+      return result;
+    }
+    if (currentPath != expectedSourceObjectPath) {
+      const result = EditorResult.failure(
+        'The dashboard opened a different survey version. Cancel this edit '
+        'session and reopen the map before saving.',
+      );
+      _setError(result.message!);
+      return result;
     }
 
-    final validationErrors = validationService.validate(survey);
+    late final SurveyDocument candidate;
+    try {
+      candidate = MapEditorLayoutAdapter.documentWithLayout(
+        source: current,
+        layout: layout,
+      );
+    } catch (error) {
+      final message = _humanizeError(error);
+      _setError(message);
+      return EditorResult.failure(message);
+    }
+
+    final validationErrors = validationService.validate(candidate);
     if (validationErrors.isNotEmpty) {
-      _errorMessage = validationErrors.join('\n');
-      notifyListeners();
-      return;
+      final message = validationErrors.join('\n');
+      _setError(message);
+      return EditorResult.failure(message);
     }
 
-    await _runBusy('Uploading a new survey version...', () async {
+    _isBusy = true;
+    _statusMessage =
+        'Uploading a new Store ${candidate.storeNumber} survey version...';
+    _errorMessage = null;
+    notifyListeners();
+
+    try {
       final nextPath = await repository.saveNewVersion(
-        survey: survey,
-        currentObjectPath: path,
+        survey: candidate,
+        currentObjectPath: currentPath,
       );
       _currentObjectPath = nextPath;
-      _savedSnapshot = survey.clone();
-      _statusMessage = 'Saved new version: ${nextPath.split('/').last}';
-
-      final stores = await repository.loadStoreIndex();
-      _stores = stores;
-      _currentStore = _findStoreContainingPath(nextPath) ?? _currentStore;
-    });
+      _currentSurvey = candidate;
+      _savedSnapshot = candidate.clone();
+      _recordNewVersion(survey: candidate, objectPath: nextPath);
+      final fileName = nextPath.split('/').last;
+      _statusMessage = 'New survey version uploaded: $fileName';
+      return EditorResult.success(
+        'New survey version uploaded: $fileName',
+      );
+    } catch (error) {
+      final message = _humanizeError(error);
+      _errorMessage = message;
+      _statusMessage = null;
+      return EditorResult.failure(message);
+    } finally {
+      _isBusy = false;
+      notifyListeners();
+    }
   }
 
   Future<void> downloadCurrentExcel() async {
@@ -428,6 +475,39 @@ class SurveyAdminController extends ChangeNotifier {
       }
     }
     return null;
+  }
+
+  void _recordNewVersion({
+    required SurveyDocument survey,
+    required String objectPath,
+  }) {
+    final currentStore = _currentStore;
+    if (currentStore == null) {
+      return;
+    }
+
+    final nextStore = StoreRecord(
+      storageFolder: currentStore.storageFolder,
+      storeNumber: survey.storeNumber,
+      stateCode: survey.stateCode,
+      city: survey.city,
+      versions: [
+        StorageSurveyVersion(
+          objectPath: objectPath,
+          updatedAt: survey.updatedAt,
+        ),
+        for (final version in currentStore.versions)
+          if (version.objectPath != objectPath) version,
+      ],
+    );
+    _currentStore = nextStore;
+
+    final index = _stores.indexWhere((store) => store.key == nextStore.key);
+    if (index >= 0) {
+      final updatedStores = [..._stores];
+      updatedStores[index] = nextStore;
+      _stores = updatedStores;
+    }
   }
 
   List<StoreRecord> _selectedStores() {

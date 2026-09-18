@@ -2,15 +2,13 @@
 //
 // Responsibility:
 // Isolates all Supabase Storage access. The UI never needs to know how JSON
-// objects are listed, grouped into stores, downloaded, or versioned on save.
-
-import 'dart:convert';
-import 'dart:typed_data';
+// objects are listed, grouped into stores, downloaded, or saved as new versions.
 
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../models/store_record.dart';
 import '../models/survey_document.dart';
+import '../utils/survey_version_path_builder.dart';
 
 class SurveyStorageRepository {
   final SupabaseClient client;
@@ -93,31 +91,29 @@ class SurveyStorageRepository {
     return SurveyDocument.fromBytes(bytes);
   }
 
-  /// Saves edits as a NEW immutable version rather than overwriting history.
-  /// The filename intentionally contains store number + upload timestamp + id.
+  /// Saves edits as a new immutable object and never targets the opened file.
+  /// The filename contains store number + document updatedAt + survey id.
   Future<String> saveNewVersion({
     required SurveyDocument survey,
     required String currentObjectPath,
   }) async {
-    final folder = _parentFolder(currentObjectPath);
-    final now = DateTime.now().toUtc();
-    final timestamp = now.toIso8601String().replaceAll(':', '-');
-    final safeStore = _safeFilePart(survey.storeNumber);
-    final safeSurveyId = _safeFilePart(
-      survey.surveyId.isEmpty ? 'edited' : survey.surveyId,
-    );
-    final fileName = '$safeStore-$timestamp-$safeSurveyId.json';
-    final nextPath = folder.isEmpty ? fileName : '$folder/$fileName';
+    if (currentObjectPath.trim().isEmpty) {
+      throw ArgumentError('The source survey object path cannot be empty.');
+    }
 
-    final bytes = Uint8List.fromList(
-      utf8.encode(survey.toJsonString(pretty: true)),
+    final nextPath = SurveyVersionPathBuilder.build(
+      currentObjectPath: currentObjectPath,
+      storeNumber: survey.storeNumber,
+      surveyId: survey.surveyId,
+      updatedAt: survey.updatedAt ?? DateTime.now().toUtc(),
     );
 
     await _storage.uploadBinary(
       nextPath,
-      bytes,
+      survey.toUtf8Bytes(pretty: true),
       fileOptions: const FileOptions(
         cacheControl: '0',
+        // Insert-only: an existing object is never updated or replaced.
         upsert: false,
         contentType: 'application/json',
       ),
@@ -186,15 +182,5 @@ class SurveyStorageRepository {
   String _lastFolderSegment(String path) {
     final parts = path.split('/').where((part) => part.isNotEmpty).toList();
     return parts.isEmpty ? 'Unknown' : parts.last;
-  }
-
-  String _parentFolder(String path) {
-    final slash = path.lastIndexOf('/');
-    return slash < 0 ? '' : path.substring(0, slash);
-  }
-
-  String _safeFilePart(String value) {
-    final normalized = value.trim().isEmpty ? 'unknown' : value.trim();
-    return normalized.replaceAll(RegExp(r'[^A-Za-z0-9._-]'), '-');
   }
 }

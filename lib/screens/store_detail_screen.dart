@@ -1,17 +1,19 @@
 // store_detail_screen.dart
 //
 // Responsibility:
-// Presents one immutable survey version plus browser edits, schema diagnostics,
-// production summaries, exports, and the interactive map. Persistence and
-// mutations remain controller responsibilities.
+// Presents one stored survey version, schema diagnostics, production summaries,
+// exports, and a read-only map preview. Map changes open in a dedicated page;
+// persistence and mutations remain controller responsibilities.
 
 import 'package:flutter/material.dart';
 
 import '../controllers/survey_admin_controller.dart';
 import '../models/store_record.dart';
+import '../models/survey_document.dart';
+import '../utils/map_editor_layout_adapter.dart';
 import '../widgets/production_summary_card.dart';
-import '../widgets/raw_json_editor_dialog.dart';
 import '../widgets/survey_map_editor.dart';
+import 'map_edit_screen.dart';
 
 class StoreDetailScreen extends StatelessWidget {
   final SurveyAdminController controller;
@@ -51,16 +53,7 @@ class StoreDetailScreen extends StatelessWidget {
               const SizedBox(height: 12),
               SurveyMapEditor(
                 survey: survey,
-                onTableMoved: controller.updateTablePosition,
-                onTableZoneChanged: controller.updateTableZone,
-                onDistanceMeasurementChanged:
-                    controller.updateDistanceMeasurement,
-                onSpigotPressureChanged: controller.updateSpigotPressure,
-                onEntranceChanged: controller.updateEntrance,
-                onTableDeleted: controller.deleteTable,
-                onDistanceDeleted: controller.deleteDistance,
-                onEntranceDeleted: controller.deleteEntrance,
-                onSpigotDeleted: controller.deleteSpigot,
+                readOnly: true,
               ),
               const SizedBox(height: 14),
               _SurveyMetadataCard(
@@ -128,7 +121,7 @@ class _StoreHeader extends StatelessWidget {
                 value: selectedPath,
                 isExpanded: true,
                 decoration: const InputDecoration(
-                  labelText: 'Immutable survey version',
+                  labelText: 'Stored survey version',
                   border: OutlineInputBorder(),
                   isDense: true,
                 ),
@@ -161,16 +154,9 @@ class _StoreHeader extends StatelessWidget {
             FilledButton.icon(
               onPressed: controller.isBusy
                   ? null
-                  : controller.saveCurrentSurveyAsNewVersion,
-              icon: const Icon(Icons.cloud_upload_outlined),
-              label: const Text('Save new version'),
-            ),
-            OutlinedButton.icon(
-              onPressed: controller.isBusy || !controller.hasUnsavedChanges
-                  ? null
-                  : controller.revertCurrentSurvey,
-              icon: const Icon(Icons.undo),
-              label: const Text('Revert browser edits'),
+                  : () => _openMapEditor(context),
+              icon: const Icon(Icons.edit_location_alt_outlined),
+              label: const Text('Edit map'),
             ),
             OutlinedButton.icon(
               onPressed:
@@ -184,25 +170,74 @@ class _StoreHeader extends StatelessWidget {
               icon: const Icon(Icons.table_view_outlined),
               label: const Text('Store Excel'),
             ),
-            OutlinedButton.icon(
-              onPressed: controller.isBusy
-                  ? null
-                  : () {
-                      showDialog<void>(
-                        context: context,
-                        builder: (context) => RawJsonEditorDialog(
-                          initialJson: survey.toJsonString(pretty: true),
-                          onApply: controller.replaceCurrentSurveyFromJson,
-                        ),
-                      );
-                    },
-              icon: const Icon(Icons.data_object),
-              label: const Text('Raw JSON'),
-            ),
           ],
         ),
       ],
     );
+  }
+
+  Future<void> _openMapEditor(BuildContext context) async {
+    final survey = controller.currentSurvey;
+    final objectPath = controller.currentObjectPath;
+    if (survey == null || objectPath == null) {
+      return;
+    }
+
+    if (!survey.hasSupportedSchema) {
+      await showDialog<void>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          title: const Text('Unsupported survey schema'),
+          content: Text(
+            'Schema ${survey.schemaVersion} cannot be edited safely. This '
+            'admin supports schemas '
+            '${SurveyDocument.minimumSupportedSchemaVersion}-'
+            '${SurveyDocument.currentSupportedSchemaVersion}.',
+          ),
+          actions: [
+            FilledButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: const Text('Close'),
+            ),
+          ],
+        ),
+      );
+      return;
+    }
+
+    try {
+      final initialLayout = MapEditorLayoutAdapter.fromDocument(survey);
+      await Navigator.of(context).push<bool>(
+        MaterialPageRoute(
+          builder: (context) => MapEditScreen(
+            adminController: controller,
+            objectPath: objectPath,
+            storeNumber: survey.storeNumber,
+            locationLabel: [survey.city, survey.stateCode]
+                .where((part) => part.trim().isNotEmpty)
+                .join(', '),
+            initialLayout: initialLayout,
+          ),
+        ),
+      );
+    } catch (error) {
+      if (!context.mounted) {
+        return;
+      }
+      await showDialog<void>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          title: const Text('Map cannot be opened for editing'),
+          content: SelectableText(error.toString()),
+          actions: [
+            FilledButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: const Text('Close'),
+            ),
+          ],
+        ),
+      );
+    }
   }
 }
 
@@ -236,8 +271,10 @@ class _EditStatusCard extends StatelessWidget {
               children: [
                 Text(
                   valid
-                      ? 'Schema-9 save checks pass${hasUnsavedChanges ? ' • browser edits pending' : ''}'
-                      : '${validationIssues.length} save issue${validationIssues.length == 1 ? '' : 's'}${hasUnsavedChanges ? ' • browser edits pending' : ''}',
+                      ? 'Map validity checks pass${hasUnsavedChanges ? ' • browser edits pending' : ''}'
+                      : '${validationIssues.length} save issue'
+                          '${validationIssues.length == 1 ? '' : 's'}'
+                          '${hasUnsavedChanges ? ' • browser edits pending' : ''}',
                   style: const TextStyle(fontWeight: FontWeight.w800),
                 ),
                 if (!valid) ...[

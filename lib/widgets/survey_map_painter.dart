@@ -1,7 +1,7 @@
 // survey_map_painter.dart
 //
 // Responsibility:
-// Draws supported schema 9-11 maps with the same coordinate meanings and visual
+// Draws supported schema 9-12 maps with the same coordinate meanings and visual
 // layer order as the field app. Browser and PDF output reuse this painter.
 
 import 'dart:math' as math;

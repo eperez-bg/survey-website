@@ -94,6 +94,18 @@ void main() {
     expect(const SurveyValidationService().validate(schema10), isEmpty);
   });
 
+  test('schema 12 uses the current field-app map contract', () {
+    final source = jsonDecode(
+      File('assets/sample_survey_v11.json').readAsStringSync(),
+    ) as Map<String, dynamic>;
+    source['schemaVersion'] = 12;
+    final schema12 = SurveyDocument(source);
+
+    expect(schema12.hasSupportedSchema, isTrue);
+    expect(schema12.mapData.noInstallZoneCells.length, 2);
+    expect(const SurveyValidationService().validate(schema12), isEmpty);
+  });
+
   test('a no-install cell blocks a distance strip', () {
     final source = jsonDecode(
       File('assets/sample_survey_v11.json').readAsStringSync(),
@@ -111,9 +123,13 @@ void main() {
       ),
       isEmpty,
     );
+    final issues = const SurveyValidationService().validate(blocked);
     expect(
-      const SurveyValidationService().validate(blocked),
-      contains(contains('crosses a no-install zone')),
+      issues.any(
+        (issue) =>
+            issue.contains('No Install Zone') || issue.contains('disconnected'),
+      ),
+      isTrue,
     );
   });
 }

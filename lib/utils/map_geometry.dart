@@ -1,7 +1,7 @@
 // map_geometry.dart
 //
 // Responsibility:
-// Rebuilds saved schema 9-11 distance cells and applies the same collision
+// Rebuilds saved schema 9-12 distance cells and applies the same collision
 // rules used by the Flutter field app. It has no UI or storage dependencies.
 
 import 'dart:math' as math;
