@@ -12,6 +12,7 @@ import '../models/store_record.dart';
 import '../models/survey_document.dart';
 import '../utils/map_editor_layout_adapter.dart';
 import '../widgets/production_summary_card.dart';
+import '../widgets/survey_deletion_card.dart';
 import '../widgets/survey_map_editor.dart';
 import 'map_edit_screen.dart';
 
@@ -60,6 +61,8 @@ class StoreDetailScreen extends StatelessWidget {
                 controller: controller,
                 objectPath: objectPath,
               ),
+              const SizedBox(height: 28),
+              SurveyDeletionCard(controller: controller),
               const SizedBox(height: 80),
             ],
           ),

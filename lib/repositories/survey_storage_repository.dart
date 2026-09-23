@@ -16,6 +16,8 @@ abstract interface class SurveyStorageDataSource {
 
   Future<SurveyDocument> loadSurvey(String objectPath);
 
+  Future<void> deleteSurvey(String objectPath);
+
   Future<StorageSurveyVersion> saveNewVersion({
     required SurveyDocument survey,
     required String currentObjectPath,
@@ -49,6 +51,19 @@ class SurveyStorageRepository implements SurveyStorageDataSource {
   Future<SurveyDocument> loadSurvey(String objectPath) async {
     final bytes = await _storage.download(objectPath);
     return SurveyDocument.fromBytes(bytes);
+  }
+
+  /// Permanently removes one exact immutable survey object.
+  ///
+  /// The controller deletes the matching Postgres metadata row only after this
+  /// request succeeds, so a failed Storage request cannot hide a valid object
+  /// from the dashboard index.
+  @override
+  Future<void> deleteSurvey(String objectPath) async {
+    if (objectPath.trim().isEmpty) {
+      throw ArgumentError('The survey object path cannot be empty.');
+    }
+    await _storage.remove([objectPath]);
   }
 
   /// Saves edits as a new immutable object and never targets the opened file.

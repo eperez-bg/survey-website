@@ -28,6 +28,8 @@ import '../utils/production_metrics_calculator.dart';
 import '../utils/map_editor_layout_adapter.dart';
 
 class SurveyAdminController extends ChangeNotifier {
+  static const String _temporaryDeletePassword = 'a74rFnb';
+
   final SurveyStorageDataSource storageRepository;
   final SurveyMetadataDataSource metadataRepository;
   final SurveyIndexSyncService indexSyncService;
@@ -222,6 +224,121 @@ class SurveyAdminController extends ChangeNotifier {
       return;
     }
     await openStore(store, objectPath: objectPath);
+  }
+
+  /// The temporary password is an accidental-click guard in the web client,
+  /// not real authorization. Supabase RLS remains the actual access boundary.
+  bool isDeletePasswordValid(String value) =>
+      value == _temporaryDeletePassword;
+
+  /// Permanently deletes the selected JSON version and its matching metadata.
+  /// The latest remaining version is opened automatically. Because
+  /// `survey_store_index` is a view, no replacement row is written manually.
+  Future<EditorResult> deleteCurrentSurvey({
+    required String password,
+  }) async {
+    if (!isDeletePasswordValid(password)) {
+      const result = EditorResult.failure('Incorrect delete password.');
+      _setError(result.message!);
+      return result;
+    }
+
+    final store = _currentStore;
+    final objectPath = _currentObjectPath;
+    if (store == null || objectPath == null) {
+      const result = EditorResult.failure('No survey is open.');
+      _setError(result.message!);
+      return result;
+    }
+
+    final storeNumber = store.storeNumber;
+    final fileName = objectPath.split('/').last;
+    _startBusy('Deleting $fileName permanently...');
+
+    try {
+      await _deleteVersionFromStorageAndIndex(objectPath);
+      final replacementOpened = await _reloadAfterDeletion(storeNumber);
+      final message = replacementOpened
+          ? 'Deleted $fileName. The newest remaining Store $storeNumber '
+              'survey is now selected.'
+          : 'Deleted $fileName. Store $storeNumber had no remaining surveys '
+              'and was removed from the index.';
+      _statusMessage = message;
+      return EditorResult.success(message);
+    } catch (error) {
+      final message = 'Survey deletion did not fully complete. It is safe to '
+          'retry the same deletion. ${_humanizeError(error)}';
+      _errorMessage = message;
+      _statusMessage = null;
+      return EditorResult.failure(message);
+    } finally {
+      _finishBusy();
+    }
+  }
+
+  /// Permanently deletes every known version for the current store. Version
+  /// pairs are removed Storage-first and metadata-second so a Storage failure
+  /// cannot hide a JSON object that still exists.
+  Future<EditorResult> deleteCurrentStore({
+    required String password,
+  }) async {
+    if (!isDeletePasswordValid(password)) {
+      const result = EditorResult.failure('Incorrect delete password.');
+      _setError(result.message!);
+      return result;
+    }
+
+    final store = _currentStore;
+    if (store == null) {
+      const result = EditorResult.failure('No store is open.');
+      _setError(result.message!);
+      return result;
+    }
+
+    final storeNumber = store.storeNumber;
+    _startBusy('Loading all Store $storeNumber survey versions...');
+
+    try {
+      final indexedVersions = await metadataRepository.loadVersionsForStore(
+        storeNumber,
+      );
+      final paths = <String>{
+        for (final version in indexedVersions) version.objectPath,
+        // Include a just-uploaded local version whose metadata registration may
+        // still be pending.
+        for (final version in store.versions) version.objectPath,
+      }.toList(growable: false);
+
+      if (paths.isEmpty) {
+        throw StateError('No survey versions were found for Store $storeNumber.');
+      }
+
+      for (var index = 0; index < paths.length; index += 1) {
+        _statusMessage = 'Deleting Store $storeNumber survey '
+            '${index + 1} of ${paths.length}...';
+        notifyListeners();
+        await _deleteVersionFromStorageAndIndex(paths[index]);
+      }
+
+      final stores = await metadataRepository.loadStoreIndex();
+      _replaceStoreIndex(stores);
+      _clearCurrentSelection();
+      _selectedStoreKeys.remove(storeNumber);
+
+      final message = 'Deleted Store $storeNumber and all ${paths.length} '
+          'survey version${paths.length == 1 ? '' : 's'}.';
+      _statusMessage = message;
+      return EditorResult.success(message);
+    } catch (error) {
+      final message = 'Store deletion did not fully complete. Completed '
+          'versions stay deleted; it is safe to retry Delete Store to finish '
+          'the remainder. ${_humanizeError(error)}';
+      _errorMessage = message;
+      _statusMessage = null;
+      return EditorResult.failure(message);
+    } finally {
+      _finishBusy();
+    }
   }
 
   EditorResult updateTablePosition(
@@ -611,6 +728,51 @@ class SurveyAdminController extends ChangeNotifier {
     return lastError;
   }
 
+  Future<void> _deleteVersionFromStorageAndIndex(String objectPath) async {
+    await storageRepository.deleteSurvey(objectPath);
+
+    Object? lastError;
+    for (var attempt = 1; attempt <= 3; attempt += 1) {
+      try {
+        await metadataRepository.deleteVersion(objectPath);
+        return;
+      } catch (error) {
+        lastError = error;
+        if (attempt < 3) {
+          await Future<void>.delayed(Duration(milliseconds: attempt * 250));
+        }
+      }
+    }
+
+    throw StateError(
+      'The Storage object was removed, but its metadata row could not be '
+      'deleted after three attempts: $lastError',
+    );
+  }
+
+  Future<bool> _reloadAfterDeletion(String storeNumber) async {
+    final stores = await metadataRepository.loadStoreIndex();
+    _replaceStoreIndex(stores);
+    final replacements = stores.where(
+      (store) => store.storeNumber == storeNumber,
+    );
+    if (replacements.isEmpty) {
+      _clearCurrentSelection();
+      _selectedStoreKeys.remove(storeNumber);
+      return false;
+    }
+
+    await _openStoreInternal(replacements.first);
+    return true;
+  }
+
+  void _clearCurrentSelection() {
+    _currentStore = null;
+    _currentSurvey = null;
+    _savedSnapshot = null;
+    _currentObjectPath = null;
+  }
+
   int _newestVersionFirst(
     StorageSurveyVersion a,
     StorageSurveyVersion b,
@@ -641,10 +803,7 @@ class SurveyAdminController extends ChangeNotifier {
   }
 
   Future<void> _runBusy(String message, Future<void> Function() action) async {
-    _isBusy = true;
-    _statusMessage = message;
-    _errorMessage = null;
-    notifyListeners();
+    _startBusy(message);
 
     try {
       await action();
@@ -652,9 +811,20 @@ class SurveyAdminController extends ChangeNotifier {
       _errorMessage = _humanizeError(error);
       _statusMessage = null;
     } finally {
-      _isBusy = false;
-      notifyListeners();
+      _finishBusy();
     }
+  }
+
+  void _startBusy(String message) {
+    _isBusy = true;
+    _statusMessage = message;
+    _errorMessage = null;
+    notifyListeners();
+  }
+
+  void _finishBusy() {
+    _isBusy = false;
+    notifyListeners();
   }
 
   void _setError(String message) {

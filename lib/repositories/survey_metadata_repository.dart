@@ -19,6 +19,8 @@ abstract interface class SurveyMetadataDataSource {
   Future<Set<String>> loadIndexedObjectPaths();
 
   Future<void> registerVersion(SurveyVersionMetadata version);
+
+  Future<void> deleteVersion(String objectPath);
 }
 
 class SurveyMetadataRepository implements SurveyMetadataDataSource {
@@ -147,6 +149,32 @@ class SurveyMetadataRepository implements SurveyMetadataDataSource {
           onConflict: 'object_path',
           ignoreDuplicates: true,
         );
+  }
+
+  /// Deletes only the catalog row for the exact Storage object path.
+  /// `survey_store_index` is a view, so it automatically promotes the next
+  /// newest row for that store or removes the store when no versions remain.
+  @override
+  Future<void> deleteVersion(String objectPath) async {
+    if (objectPath.trim().isEmpty) {
+      throw ArgumentError('The survey object path cannot be empty.');
+    }
+    await client.from(versionsTable).delete().eq('object_path', objectPath);
+
+    // PostgREST can legally report an empty DELETE when RLS hides the target.
+    // The existing SELECT policy lets us distinguish that silent denial from a
+    // successful/idempotent delete before refreshing the dashboard view.
+    final remaining = await client
+        .from(versionsTable)
+        .select('object_path')
+        .eq('object_path', objectPath)
+        .limit(1);
+    if (remaining.isNotEmpty) {
+      throw StateError(
+        'The metadata row still exists. Check the survey_versions DELETE '
+        'grant and RLS policy.',
+      );
+    }
   }
 
   int _compareStores(StoreRecord a, StoreRecord b) {
