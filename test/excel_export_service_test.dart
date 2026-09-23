@@ -42,6 +42,9 @@ void main() {
     expect(
       ExcelExportService.productionHeaders,
       containsAllInOrder([
+        'Average PSI',
+        'Ramp Sections Count',
+        'Ramp count per distance (46in)',
         'Zone Count',
         'Zones under canopy',
         'Max canopy height (in.)',
@@ -55,6 +58,21 @@ void main() {
     final tableGroupCount = stores.rows[1][tableGroupColumn]?.value;
     expect(tableGroupCount, isA<IntCellValue>());
     expect((tableGroupCount! as IntCellValue).value, metrics.tableGroupCount);
+    final rampSectionsColumn = ExcelExportService.productionHeaders.indexOf(
+      'Ramp Sections Count',
+    );
+    final rampSectionsCount = stores.rows[1][rampSectionsColumn]?.value;
+    expect(rampSectionsCount, isA<IntCellValue>());
+    expect(
+      (rampSectionsCount! as IntCellValue).value,
+      metrics.rampSectionsCount,
+    );
+    final rampCountColumn = ExcelExportService.productionHeaders.indexOf(
+      'Ramp count per distance (46in)',
+    );
+    final rampCount = stores.rows[1][rampCountColumn]?.value;
+    expect(rampCount, isA<IntCellValue>());
+    expect((rampCount! as IntCellValue).value, metrics.rampCountAt46Inches);
     final zonesUnderCanopyColumn = ExcelExportService.productionHeaders.indexOf(
       'Zones under canopy',
     );
@@ -94,6 +112,38 @@ void main() {
     );
     expect(stores.rows[1][0]?.value.toString(), survey.storeNumber);
     expect(stores.rows[2][0]?.value.toString(), survey.storeNumber);
+  });
+
+  test('Zone Count export ignores zones without production tables', () {
+    final sourceSurvey = SurveyDocument.fromJsonString(
+      File('assets/sample_survey_v9.json').readAsStringSync(),
+    );
+    final source = sourceSurvey.raw;
+    final layout = source['gardenCenterLayout'] as Map<String, dynamic>;
+    final zones = layout['zoneList'] as List<dynamic>;
+    zones.add({
+      'zoneId': 'empty-zone',
+      'label': 'Empty Zone',
+      'colorHex': '#999999',
+    });
+    final survey = SurveyDocument(source);
+    final metrics = const ProductionMetricsCalculator().calculate(survey);
+
+    final bytes = const ExcelExportService().buildSurveyWorkbook(
+      survey: survey,
+      metrics: metrics,
+      objectPath: 'test/store-with-empty-zone.json',
+    );
+    final stores = Excel.decodeBytes(bytes).tables['Stores']!;
+    final zoneCountColumn = ExcelExportService.productionHeaders.indexOf(
+      'Zone Count',
+    );
+    final zoneCount = stores.rows[1][zoneCountColumn]?.value;
+
+    expect(zones, hasLength(3));
+    expect(metrics.zoneCount, 2);
+    expect(zoneCount, isA<IntCellValue>());
+    expect((zoneCount! as IntCellValue).value, 2);
   });
 
   test('exported workbook applies the requested worksheet formatting', () {

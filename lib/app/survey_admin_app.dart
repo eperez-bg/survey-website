@@ -10,6 +10,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../config/app_config.dart';
 import '../controllers/survey_admin_controller.dart';
+import '../repositories/survey_metadata_repository.dart';
 import '../repositories/survey_storage_repository.dart';
 import '../screens/store_list_screen.dart';
 
@@ -56,12 +57,16 @@ class _AdminBootstrapState extends State<_AdminBootstrap> {
   @override
   void initState() {
     super.initState();
+    final storageRepository = SurveyStorageRepository(
+      client: widget.client,
+      bucketName: widget.config.surveyBucket,
+    );
+    final metadataRepository = SurveyMetadataRepository(
+      client: widget.client,
+    );
     _controller = SurveyAdminController(
-      config: widget.config,
-      repository: SurveyStorageRepository(
-        client: widget.client,
-        bucketName: widget.config.surveyBucket,
-      ),
+      storageRepository: storageRepository,
+      metadataRepository: metadataRepository,
     );
     _controller.addListener(_rebuild);
     _controller.initialize();

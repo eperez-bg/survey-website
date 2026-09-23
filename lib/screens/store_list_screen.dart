@@ -84,8 +84,16 @@ class _TopBar extends StatelessWidget {
             ],
             Text('${controller.stores.length} stores'),
             const SizedBox(width: 12),
+            OutlinedButton.icon(
+              onPressed: controller.isBusy
+                  ? null
+                  : () => controller.synchronizeSurveyIndex(),
+              icon: const Icon(Icons.sync, size: 18),
+              label: const Text('Sync index'),
+            ),
+            const SizedBox(width: 4),
             IconButton(
-              tooltip: 'Refresh Supabase store index',
+              tooltip: 'Refresh survey metadata index',
               onPressed: controller.isBusy
                   ? null
                   : () => controller.refreshStoreIndex(),
@@ -296,7 +304,8 @@ class _StoreListTile extends StatelessWidget {
                       style: Theme.of(context).textTheme.bodySmall,
                     ),
                     Text(
-                      '${store.versions.length} version${store.versions.length == 1 ? '' : 's'}',
+                      '${store.versionCount} version'
+                      '${store.versionCount == 1 ? '' : 's'}',
                       style: Theme.of(context).textTheme.labelSmall,
                     ),
                   ],

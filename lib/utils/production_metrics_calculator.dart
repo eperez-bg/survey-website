@@ -22,10 +22,19 @@ class ProductionMetricsCalculator {
         GridCoordinate(row: cell.row, column: cell.column),
     };
     final validZoneIds = map.zones.map((zone) => zone.zoneId).toSet();
+    final populatedZoneIds = <String>{};
     final zonesUnderCanopy = <String>{};
     final logicalTables = <String, List<LayoutTableModel>>{};
 
     for (final table in map.tables) {
+      final zoneId = table.zoneId;
+      // Custom fixtures are not assignable to production zones. Ignore stale
+      // custom-zone references in older uploads just as the current editor does.
+      if (table.tableKind != TableKind.custom &&
+          zoneId != null &&
+          validZoneIds.contains(zoneId)) {
+        populatedZoneIds.add(zoneId);
+      }
       logicalTables
           .putIfAbsent(table.logicalKey, () => <LayoutTableModel>[])
           .add(table);
@@ -44,7 +53,7 @@ class ProductionMetricsCalculator {
         (table) => _tableOverlapsCanopy(table, canopyCoordinates),
       );
 
-      if (isUnderCanopy) {
+      if (isUnderCanopy && kind != TableKind.custom) {
         for (final member in members) {
           final zoneId = member.zoneId;
           if (zoneId != null && validZoneIds.contains(zoneId)) {
@@ -111,7 +120,7 @@ class ProductionMetricsCalculator {
       rampSectionsCount: map.distances.length,
       rampCountAt46Inches: rampCount,
       tableGroupCount: const TableGroupCalculator().countGroups(map.tables),
-      zoneCount: map.zones.length,
+      zoneCount: populatedZoneIds.length,
       zonesUnderCanopy: zonesUnderCanopy.length,
       maxCanopyHeightInches: maxCanopyHeight,
     );

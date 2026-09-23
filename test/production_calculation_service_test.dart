@@ -21,7 +21,8 @@ void main() {
     expect(result.tableGroupCount, 2);
     expect(result.spigotCount, 3);
     expect(result.averagePsi, 60);
-    expect(result.rampCountAt46Inches, closeTo(1.5, 0.0001));
+    expect(result.rampSectionsCount, 2);
+    expect(result.rampCountAt46Inches, 2);
     expect(result.zoneCount, 2);
     expect(result.zonesUnderCanopy, 1);
     expect(result.maxCanopyHeightInches, 132);
@@ -42,6 +43,47 @@ void main() {
     );
 
     expect(result.zonesUnderCanopy, 2);
+  });
+
+  for (final schemaVersion in [9, 12]) {
+    test(
+      'ignores empty zones in schema-$schemaVersion production totals',
+      () {
+        final json = _surveyJson();
+        json['schemaVersion'] = schemaVersion;
+        final layout = json['gardenCenterLayout']! as Map<String, dynamic>;
+        final zones = layout['zoneList']! as List<dynamic>;
+        zones.add({
+          'zoneId': 'empty-zone',
+          'label': 'Empty Zone',
+          'colorHex': '#999999',
+        });
+
+        final result = const ProductionMetricsCalculator().calculate(
+          SurveyDocument(json),
+        );
+
+        expect(zones, hasLength(3));
+        expect(result.zoneCount, 2);
+        expect(result.zonesUnderCanopy, 1);
+      },
+    );
+  }
+
+  test('rounds every distance section up before totaling ramps', () {
+    final json = _surveyJson();
+    final layout = json['gardenCenterLayout']! as Map<String, dynamic>;
+    final distances = layout['distanceList']! as List<dynamic>;
+
+    (distances[0] as Map<String, dynamic>)['measuredDistance'] = 1.0;
+    (distances[1] as Map<String, dynamic>)['measuredDistance'] = 47.0;
+
+    final result = const ProductionMetricsCalculator().calculate(
+      SurveyDocument(json),
+    );
+
+    expect(result.rampSectionsCount, 2);
+    expect(result.rampCountAt46Inches, 3);
   });
 
   test('uses blank PSI and zero max height when no canopy is present', () {

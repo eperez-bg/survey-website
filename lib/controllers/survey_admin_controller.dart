@@ -9,7 +9,6 @@ import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 
-import '../config/app_config.dart';
 import '../map_editor/models/map_editor_models.dart';
 import '../models/editor_result.dart';
 import '../models/production_metrics.dart';
@@ -17,17 +16,21 @@ import '../models/store_record.dart';
 import '../models/survey_document.dart';
 import '../models/survey_export_bundle.dart';
 import '../models/survey_map_model.dart';
+import '../models/survey_version_metadata.dart';
+import '../repositories/survey_metadata_repository.dart';
 import '../repositories/survey_storage_repository.dart';
 import '../services/excel_export_service.dart';
 import '../services/file_download_service.dart';
 import '../services/pdf_export_service.dart';
+import '../services/survey_index_sync_service.dart';
 import '../services/survey_validation_service.dart';
 import '../utils/production_metrics_calculator.dart';
 import '../utils/map_editor_layout_adapter.dart';
 
 class SurveyAdminController extends ChangeNotifier {
-  final SurveyStorageRepository repository;
-  final AppConfig config;
+  final SurveyStorageDataSource storageRepository;
+  final SurveyMetadataDataSource metadataRepository;
+  final SurveyIndexSyncService indexSyncService;
   final ProductionMetricsCalculator metricsCalculator;
   final SurveyValidationService validationService;
   final ExcelExportService excelExportService;
@@ -35,14 +38,21 @@ class SurveyAdminController extends ChangeNotifier {
   final FileDownloadService fileDownloadService;
 
   SurveyAdminController({
-    required this.repository,
-    required this.config,
+    required SurveyStorageDataSource storageRepository,
+    required SurveyMetadataDataSource metadataRepository,
+    SurveyIndexSyncService? indexSyncService,
     this.metricsCalculator = const ProductionMetricsCalculator(),
     this.validationService = const SurveyValidationService(),
     this.excelExportService = const ExcelExportService(),
     this.pdfExportService = const PdfExportService(),
     this.fileDownloadService = const FileDownloadService(),
-  });
+  }) : storageRepository = storageRepository,
+       metadataRepository = metadataRepository,
+       indexSyncService = indexSyncService ??
+           SurveyIndexSyncService(
+             storageRepository: storageRepository,
+             metadataRepository: metadataRepository,
+           );
 
   List<StoreRecord> _stores = const [];
   final Set<String> _selectedStoreKeys = <String>{};
@@ -106,41 +116,63 @@ class SurveyAdminController extends ChangeNotifier {
   }
 
   Future<void> initialize() async {
-    await refreshStoreIndex(openSampleAfterRefresh: true);
+    await refreshStoreIndex();
+    if (_stores.isEmpty && _errorMessage == null) {
+      await synchronizeSurveyIndex();
+    }
   }
 
-  Future<void> refreshStoreIndex({bool openSampleAfterRefresh = false}) async {
-    await _runBusy('Loading stores from Supabase...', () async {
-      final stores = await repository.loadStoreIndex();
-      _stores = stores;
-      _selectedStoreKeys.removeWhere(
-        (key) => stores.every((store) => store.key != key),
+  Future<void> refreshStoreIndex() async {
+    await _runBusy('Loading the survey metadata index...', () async {
+      final stores = await metadataRepository.loadStoreIndex();
+      _replaceStoreIndex(stores);
+
+      final current = _currentStore;
+      if (current != null) {
+        final refreshed = stores.where((store) => store.key == current.key);
+        if (refreshed.isNotEmpty) {
+          _currentStore = await _storeWithCompleteHistory(refreshed.first);
+        }
+      }
+      _statusMessage = 'Loaded ${stores.length} store'
+          '${stores.length == 1 ? '' : 's'} from the metadata index.';
+    });
+  }
+
+  /// Reconciles Storage with Postgres without making recursive bucket listing
+  /// part of normal startup. It runs automatically only when the new index is
+  /// empty and remains available for uploads made by older mobile app builds.
+  Future<void> synchronizeSurveyIndex() async {
+    await _runBusy('Synchronizing the survey metadata index...', () async {
+      final result = await indexSyncService.synchronize(
+        onProgress: (progress) {
+          _statusMessage = progress.message;
+          notifyListeners();
+        },
       );
 
-      if (openSampleAfterRefresh && _currentSurvey == null) {
-        final sampleStore = _findStoreContainingPath(config.sampleObjectPath);
-        if (sampleStore != null) {
-          await _openStoreInternal(
-            sampleStore,
-            objectPath: config.sampleObjectPath,
-          );
-        } else {
-          // The exact sample path is still useful during early testing even if
-          // folder listing is restricted or the path naming changes.
-          try {
-            final sample = await repository.loadSurvey(config.sampleObjectPath);
-            _currentSurvey = sample;
-            _savedSnapshot = sample.clone();
-            _currentObjectPath = config.sampleObjectPath;
-          } catch (_) {
-            // Keep the store list usable. The UI displays the index normally.
-          }
-        }
-      } else if (_currentStore != null) {
-        final refreshed = stores.where((store) => store.key == _currentStore!.key);
+      final stores = await metadataRepository.loadStoreIndex();
+      _replaceStoreIndex(stores);
+
+      final current = _currentStore;
+      if (current != null) {
+        final refreshed = stores.where((store) => store.key == current.key);
         if (refreshed.isNotEmpty) {
-          _currentStore = refreshed.first;
+          _currentStore = await _storeWithCompleteHistory(refreshed.first);
         }
+      }
+
+      if (result.failureCount == 0) {
+        _statusMessage = result.newlyIndexedCount == 0
+            ? 'Survey metadata index is already synchronized.'
+            : 'Indexed ${result.newlyIndexedCount} survey version'
+                '${result.newlyIndexedCount == 1 ? '' : 's'} successfully.';
+      } else {
+        _errorMessage = 'Indexed ${result.newlyIndexedCount} survey versions, '
+            'but ${result.failureCount} object'
+            '${result.failureCount == 1 ? '' : 's'} could not be indexed. '
+            'Run the sync again or inspect the affected JSON files.';
+        _statusMessage = null;
       }
     });
   }
@@ -329,15 +361,37 @@ class SurveyAdminController extends ChangeNotifier {
     notifyListeners();
 
     try {
-      final nextPath = await repository.saveNewVersion(
+      final storedVersion = await storageRepository.saveNewVersion(
         survey: candidate,
         currentObjectPath: currentPath,
       );
+      final nextPath = storedVersion.objectPath;
+      final uploadedAt = storedVersion.updatedAt ?? DateTime.now().toUtc();
+      final metadata = SurveyVersionMetadata.fromSurveyDocument(
+        survey: candidate,
+        objectPath: nextPath,
+        uploadedAt: uploadedAt,
+        source: 'admin',
+      );
+      final registrationError = await _registerMetadataWithRetry(metadata);
+
+      // The Storage object is already durable at this point. Update local state
+      // even if the secondary index request failed so Save cannot accidentally
+      // upload a duplicate revision when the user retries.
       _currentObjectPath = nextPath;
       _currentSurvey = candidate;
       _savedSnapshot = candidate.clone();
-      _recordNewVersion(survey: candidate, objectPath: nextPath);
+      _recordNewVersion(survey: candidate, version: storedVersion);
       final fileName = nextPath.split('/').last;
+
+      if (registrationError != null) {
+        final warning = 'New survey version uploaded: $fileName. Its metadata '
+            'index entry could not be registered yet. Return to the dashboard '
+            'and use Sync index; do not upload the map again.';
+        _statusMessage = warning;
+        return EditorResult.success(warning);
+      }
+
       _statusMessage = 'New survey version uploaded: $fileName';
       return EditorResult.success(
         'New survey version uploaded: $fileName',
@@ -443,7 +497,7 @@ class SurveyAdminController extends ChangeNotifier {
       notifyListeners();
 
       final path = store.latestVersion.objectPath;
-      final survey = await repository.loadSurvey(path);
+      final survey = await storageRepository.loadSurvey(path);
       bundles.add(
         SurveyExportBundle(
           objectPath: path,
@@ -459,27 +513,46 @@ class SurveyAdminController extends ChangeNotifier {
     StoreRecord store, {
     String? objectPath,
   }) async {
-    final path = objectPath ?? store.latestVersion.objectPath;
-    final survey = await repository.loadSurvey(path);
-    _currentStore = store;
+    final storeWithHistory = await _storeWithCompleteHistory(store);
+    final path = objectPath ?? storeWithHistory.latestVersion.objectPath;
+    final survey = await storageRepository.loadSurvey(path);
+    _currentStore = storeWithHistory;
     _currentSurvey = survey;
     _savedSnapshot = survey.clone();
     _currentObjectPath = path;
+    _updateStoreInList(storeWithHistory);
     _clearMessages();
   }
 
-  StoreRecord? _findStoreContainingPath(String objectPath) {
-    for (final store in _stores) {
-      if (store.versions.any((version) => version.objectPath == objectPath)) {
-        return store;
-      }
+  Future<StoreRecord> _storeWithCompleteHistory(StoreRecord store) async {
+    final indexedVersions = await metadataRepository.loadVersionsForStore(
+      store.storeNumber,
+    );
+    final versionsByPath = <String, StorageSurveyVersion>{
+      for (final metadata in indexedVersions)
+        metadata.objectPath: metadata.toStorageVersion(),
+      // Keep a locally known just-uploaded path if its index registration is
+      // temporarily pending.
+      for (final version in store.versions) version.objectPath: version,
+    };
+    final versions = versionsByPath.values.toList()
+      ..sort(_newestVersionFirst);
+    if (versions.isEmpty) {
+      return store;
     }
-    return null;
+    final versionCount = store.versionCount > versions.length
+        ? store.versionCount
+        : versions.length;
+    return store.copyWith(
+      storageFolder: _parentFolder(versions.first.objectPath),
+      versions: List.unmodifiable(versions),
+      indexedVersionCount: versionCount,
+    );
   }
 
   void _recordNewVersion({
     required SurveyDocument survey,
-    required String objectPath,
+    required StorageSurveyVersion version,
   }) {
     final currentStore = _currentStore;
     if (currentStore == null) {
@@ -487,27 +560,78 @@ class SurveyAdminController extends ChangeNotifier {
     }
 
     final nextStore = StoreRecord(
-      storageFolder: currentStore.storageFolder,
+      storageFolder: _parentFolder(version.objectPath),
       storeNumber: survey.storeNumber,
       stateCode: survey.stateCode,
       city: survey.city,
-      versions: [
-        StorageSurveyVersion(
-          objectPath: objectPath,
-          updatedAt: survey.updatedAt,
-        ),
-        for (final version in currentStore.versions)
-          if (version.objectPath != objectPath) version,
-      ],
+      versions: List.unmodifiable([
+        version,
+        for (final existingVersion in currentStore.versions)
+          if (existingVersion.objectPath != version.objectPath)
+            existingVersion,
+      ]),
+      indexedVersionCount: currentStore.versionCount + 1,
     );
     _currentStore = nextStore;
+    _updateStoreInList(nextStore);
+  }
 
-    final index = _stores.indexWhere((store) => store.key == nextStore.key);
-    if (index >= 0) {
-      final updatedStores = [..._stores];
-      updatedStores[index] = nextStore;
-      _stores = updatedStores;
+  void _replaceStoreIndex(List<StoreRecord> stores) {
+    _stores = List.unmodifiable(stores);
+    _selectedStoreKeys.removeWhere(
+      (key) => stores.every((store) => store.key != key),
+    );
+  }
+
+  void _updateStoreInList(StoreRecord updatedStore) {
+    final index = _stores.indexWhere((store) => store.key == updatedStore.key);
+    if (index < 0) {
+      return;
     }
+    final updatedStores = [..._stores];
+    updatedStores[index] = updatedStore;
+    _stores = List.unmodifiable(updatedStores);
+  }
+
+  Future<Object?> _registerMetadataWithRetry(
+    SurveyVersionMetadata metadata,
+  ) async {
+    Object? lastError;
+    for (var attempt = 1; attempt <= 3; attempt += 1) {
+      try {
+        await metadataRepository.registerVersion(metadata);
+        return null;
+      } catch (error) {
+        lastError = error;
+        if (attempt < 3) {
+          await Future<void>.delayed(Duration(milliseconds: attempt * 250));
+        }
+      }
+    }
+    return lastError;
+  }
+
+  int _newestVersionFirst(
+    StorageSurveyVersion a,
+    StorageSurveyVersion b,
+  ) {
+    final aDate = a.updatedAt;
+    final bDate = b.updatedAt;
+    if (aDate != null && bDate != null) {
+      return bDate.compareTo(aDate);
+    }
+    if (aDate != null) {
+      return -1;
+    }
+    if (bDate != null) {
+      return 1;
+    }
+    return b.fileName.compareTo(a.fileName);
+  }
+
+  String _parentFolder(String objectPath) {
+    final slash = objectPath.lastIndexOf('/');
+    return slash < 0 ? '' : objectPath.substring(0, slash);
   }
 
   List<StoreRecord> _selectedStores() {
