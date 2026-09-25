@@ -1,8 +1,8 @@
 // main.dart
 //
 // Responsibility:
-// Initializes Supabase for the browser and starts the internal survey website.
-// Authentication is intentionally NOT implemented in this test build.
+// Initializes Supabase for the browser and starts the authenticated internal
+// survey website.
 
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';

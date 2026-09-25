@@ -1,18 +1,22 @@
 // survey_admin_app.dart
 //
 // Responsibility:
-// Composes dependencies once at the app boundary and keeps authentication out of
-// this prototype. When auth is added later, this is the natural place to gate
-// the admin workspace behind an authenticated session.
+// Composes dependencies once at the app boundary and gates the existing admin
+// workspace behind a permanent Supabase email/password session.
+
+import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../config/app_config.dart';
+import '../controllers/admin_auth_controller.dart';
 import '../controllers/survey_admin_controller.dart';
 import '../repositories/survey_metadata_repository.dart';
 import '../repositories/survey_storage_repository.dart';
+import '../screens/login_screen.dart';
 import '../screens/store_list_screen.dart';
+import '../services/supabase_admin_auth_service.dart';
 
 class SurveyAdminApp extends StatelessWidget {
   final AppConfig config;
@@ -36,16 +40,85 @@ class SurveyAdminApp extends StatelessWidget {
       ),
       home: client == null
           ? const _ConfigurationScreen()
-          : _AdminBootstrap(config: config, client: client!),
+          : _AuthBootstrap(config: config, client: client!),
     );
+  }
+}
+
+class _AuthBootstrap extends StatefulWidget {
+  final AppConfig config;
+  final SupabaseClient client;
+
+  const _AuthBootstrap({required this.config, required this.client});
+
+  @override
+  State<_AuthBootstrap> createState() => _AuthBootstrapState();
+}
+
+class _AuthBootstrapState extends State<_AuthBootstrap> {
+  late final AdminAuthController _authController;
+
+  @override
+  void initState() {
+    super.initState();
+    _authController = AdminAuthController(
+      authService: SupabaseAdminAuthService(client: widget.client),
+    );
+    _authController.addListener(_rebuild);
+    unawaited(_authController.initialize());
+  }
+
+  @override
+  void dispose() {
+    _authController.removeListener(_rebuild);
+    _authController.dispose();
+    super.dispose();
+  }
+
+  void _rebuild() {
+    if (!mounted) {
+      return;
+    }
+    if (!_authController.isAuthenticated) {
+      // The map editor is pushed as a full-screen route. Remove every pushed
+      // admin route when a user signs out or the seven-day session expires so
+      // an already-open editor cannot remain visible above the login screen.
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          Navigator.of(context).popUntil((route) => route.isFirst);
+        }
+      });
+    }
+    setState(() {});
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    switch (_authController.status) {
+      case AdminAuthStatus.checking:
+        return const _SessionLoadingScreen();
+      case AdminAuthStatus.signedOut:
+        return LoginScreen(controller: _authController);
+      case AdminAuthStatus.authenticated:
+        return _AdminBootstrap(
+          config: widget.config,
+          client: widget.client,
+          authController: _authController,
+        );
+    }
   }
 }
 
 class _AdminBootstrap extends StatefulWidget {
   final AppConfig config;
   final SupabaseClient client;
+  final AdminAuthController authController;
 
-  const _AdminBootstrap({required this.config, required this.client});
+  const _AdminBootstrap({
+    required this.config,
+    required this.client,
+    required this.authController,
+  });
 
   @override
   State<_AdminBootstrap> createState() => _AdminBootstrapState();
@@ -87,7 +160,31 @@ class _AdminBootstrapState extends State<_AdminBootstrap> {
 
   @override
   Widget build(BuildContext context) {
-    return StoreListScreen(controller: _controller);
+    return StoreListScreen(
+      controller: _controller,
+      signedInEmail: widget.authController.signedInEmail,
+      onSignOut: widget.authController.signOut,
+    );
+  }
+}
+
+class _SessionLoadingScreen extends StatelessWidget {
+  const _SessionLoadingScreen();
+
+  @override
+  Widget build(BuildContext context) {
+    return const Scaffold(
+      body: Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            CircularProgressIndicator(),
+            SizedBox(height: 16),
+            Text('Checking sign-in session...'),
+          ],
+        ),
+      ),
+    );
   }
 }
 
@@ -127,9 +224,9 @@ class _ConfigurationScreen extends StatelessWidget {
                   const SizedBox(height: 14),
                   const Text(
                     'Do not put a Supabase service-role/secret key in this '
-                    'Flutter web project. This prototype intentionally has no '
-                    'login, so Storage policies must temporarily allow the anon '
-                    'role to select and insert survey-submissions objects.',
+                    'Flutter web project. The publishable key is correct here; '
+                    'Supabase Auth and Row Level Security protect the survey '
+                    'data.',
                   ),
                 ],
               ),

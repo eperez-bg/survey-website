@@ -13,8 +13,15 @@ import 'store_detail_screen.dart';
 
 class StoreListScreen extends StatelessWidget {
   final SurveyAdminController controller;
+  final String? signedInEmail;
+  final Future<void> Function() onSignOut;
 
-  const StoreListScreen({super.key, required this.controller});
+  const StoreListScreen({
+    super.key,
+    required this.controller,
+    required this.signedInEmail,
+    required this.onSignOut,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -22,7 +29,11 @@ class StoreListScreen extends StatelessWidget {
       body: SafeArea(
         child: Column(
           children: [
-            _TopBar(controller: controller),
+            _TopBar(
+              controller: controller,
+              signedInEmail: signedInEmail,
+              onSignOut: onSignOut,
+            ),
             _MessageBar(controller: controller),
             Expanded(
               child: LayoutBuilder(
@@ -54,8 +65,14 @@ class StoreListScreen extends StatelessWidget {
 
 class _TopBar extends StatelessWidget {
   final SurveyAdminController controller;
+  final String? signedInEmail;
+  final Future<void> Function() onSignOut;
 
-  const _TopBar({required this.controller});
+  const _TopBar({
+    required this.controller,
+    required this.signedInEmail,
+    required this.onSignOut,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -98,6 +115,49 @@ class _TopBar extends StatelessWidget {
                   ? null
                   : () => controller.refreshStoreIndex(),
               icon: const Icon(Icons.refresh),
+            ),
+            const SizedBox(width: 4),
+            PopupMenuButton<String>(
+              tooltip: signedInEmail == null
+                  ? 'Account'
+                  : 'Signed in as $signedInEmail',
+              icon: const Icon(Icons.account_circle_outlined),
+              onSelected: (value) async {
+                if (value == 'sign-out') {
+                  await onSignOut();
+                }
+              },
+              itemBuilder: (context) => [
+                PopupMenuItem<String>(
+                  enabled: false,
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 260),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'Signed in as',
+                          style: TextStyle(fontWeight: FontWeight.w700),
+                        ),
+                        const SizedBox(height: 3),
+                        Text(
+                          signedInEmail ?? 'Authorized user',
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                const PopupMenuDivider(),
+                const PopupMenuItem<String>(
+                  value: 'sign-out',
+                  child: ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: Icon(Icons.logout),
+                    title: Text('Sign out'),
+                  ),
+                ),
+              ],
             ),
           ],
         ),
