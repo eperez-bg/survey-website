@@ -23,8 +23,15 @@ class ExcelSheetFormatter {
   static const String _headerFillHex = '#FFF2CC';
 
   /// Formats a worksheet after all headings and data rows have been appended.
-  void formatPopulatedSheet(Sheet sheet) {
+  ///
+  /// [headerRowCount] allows the export to use stacked headings while keeping
+  /// this utility reusable for ordinary one-row sheets.
+  void formatPopulatedSheet(Sheet sheet, {int headerRowCount = 1}) {
     if (sheet.maxRows == 0 || sheet.maxColumns == 0) return;
+
+    final formattedHeaderRows = headerRowCount
+        .clamp(0, sheet.maxRows)
+        .toInt();
 
     final border = Border(
       borderStyle: BorderStyle.Thin,
@@ -32,7 +39,7 @@ class ExcelSheetFormatter {
     );
     final headerFill = ExcelColor.fromHexString(_headerFillHex);
 
-    _sizeColumnsFromHeaders(sheet);
+    _sizeColumnsFromHeaders(sheet, formattedHeaderRows);
 
     for (var rowIndex = 0; rowIndex < sheet.maxRows; rowIndex += 1) {
       sheet.setRowHeight(
@@ -53,11 +60,12 @@ class ExcelSheetFormatter {
         );
         if (!_hasContent(cell.value)) continue;
 
+        final isHeader = rowIndex < formattedHeaderRows;
         final currentStyle = cell.cellStyle ?? CellStyle();
         cell.cellStyle = currentStyle.copyWith(
-          boldVal: rowIndex == 0 ? true : null,
-          backgroundColorHexVal: rowIndex == 0 ? headerFill : null,
-          verticalAlignVal: rowIndex == 0 ? VerticalAlign.Center : null,
+          boldVal: isHeader ? true : null,
+          backgroundColorHexVal: isHeader ? headerFill : null,
+          verticalAlignVal: isHeader ? VerticalAlign.Center : null,
           leftBorderVal: border,
           rightBorderVal: border,
           topBorderVal: border,
@@ -67,21 +75,33 @@ class ExcelSheetFormatter {
     }
   }
 
-  void _sizeColumnsFromHeaders(Sheet sheet) {
+  void _sizeColumnsFromHeaders(Sheet sheet, int headerRowCount) {
     for (
       var columnIndex = 0;
       columnIndex < sheet.maxColumns;
       columnIndex += 1
     ) {
-      final headerValue = sheet
-          .cell(
-            CellIndex.indexByColumnRow(columnIndex: columnIndex, rowIndex: 0),
-          )
-          .value;
-      if (!_hasContent(headerValue)) continue;
-
-      final headerLength = headerValue.toString().runes.length.toDouble();
-      sheet.setColumnWidth(columnIndex, headerLength + _headerColumnPadding);
+      var longestHeaderLength = 0;
+      for (var rowIndex = 0; rowIndex < headerRowCount; rowIndex += 1) {
+        final headerValue = sheet
+            .cell(
+              CellIndex.indexByColumnRow(
+                columnIndex: columnIndex,
+                rowIndex: rowIndex,
+              ),
+            )
+            .value;
+        if (!_hasContent(headerValue)) continue;
+        final length = headerValue.toString().runes.length;
+        if (length > longestHeaderLength) {
+          longestHeaderLength = length;
+        }
+      }
+      if (longestHeaderLength == 0) continue;
+      sheet.setColumnWidth(
+        columnIndex,
+        longestHeaderLength.toDouble() + _headerColumnPadding,
+      );
     }
   }
 
