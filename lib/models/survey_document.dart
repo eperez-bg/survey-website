@@ -53,10 +53,28 @@ class SurveyDocument {
       schemaVersion >= minimumSupportedSchemaVersion &&
       schemaVersion <= currentSupportedSchemaVersion;
   String get storeNumber => nullableString(storeInfo['storeNumber']) ?? 'Unknown';
-  String get stateCode => nullableString(storeInfo['stateCode']) ?? '';
+  String get stateCode => nullableString(storeInfo['stateCode']) ??
+      nullableString(storeInfo['stateProvince']) ??
+      '';
   String get city => nullableString(storeInfo['city']) ?? '';
+  String get shippingAddress =>
+      nullableString(storeInfo['shippingAddress']) ??
+      nullableString(storeInfo['storeAddress']) ??
+      nullableString(storeInfo['address']) ??
+      nullableString(storeInfo['streetAddress']) ??
+      '';
+  String get postalCode => nullableString(storeInfo['postalCode']) ??
+      nullableString(storeInfo['zipCode']) ??
+      nullableString(storeInfo['zip']) ??
+      '';
   String get picName => nullableString(storeInfo['picName']) ??
       nullableString(storeInfo['PICName']) ??
+      '';
+  String get picEmail => nullableString(storeInfo['picEmail']) ??
+      nullableString(storeInfo['PICEmail']) ??
+      '';
+  String get picPhone => nullableString(storeInfo['picPhone']) ??
+      nullableString(storeInfo['PICPhone']) ??
       '';
   String get surveyorName =>
       nullableString(surveyorInfo['surveyorName']) ?? '';

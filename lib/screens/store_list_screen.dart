@@ -238,27 +238,7 @@ class _StorePane extends StatelessWidget {
                 Row(
                   children: [
                     Expanded(
-                      child: DropdownButtonFormField<String?>(
-                        value: controller.stateFilter,
-                        isExpanded: true,
-                        decoration: const InputDecoration(
-                          labelText: 'State',
-                          border: OutlineInputBorder(),
-                          isDense: true,
-                        ),
-                        items: [
-                          const DropdownMenuItem<String?>(
-                            value: null,
-                            child: Text('All states'),
-                          ),
-                          for (final state in controller.availableStates)
-                            DropdownMenuItem<String?>(
-                              value: state,
-                              child: Text(state),
-                            ),
-                        ],
-                        onChanged: controller.setStateFilter,
-                      ),
+                      child: _StateFilterMenu(controller: controller),
                     ),
                     const SizedBox(width: 8),
                     Checkbox(
@@ -313,18 +293,306 @@ class _BulkActions extends StatelessWidget {
           label: Text('Selected XLSX (${controller.selectedStoreCount})'),
         ),
         OutlinedButton.icon(
-          onPressed: controller.isBusy ? null : controller.downloadSelectedPdf,
-          icon: const Icon(Icons.picture_as_pdf, size: 18),
-          label: const Text('Selected PDF'),
-        ),
-        OutlinedButton.icon(
           onPressed: controller.isBusy ? null : controller.downloadAllExcel,
           icon: const Icon(Icons.download_for_offline_outlined, size: 18),
           label: const Text('All XLSX'),
         ),
+        _StoreSortMenu(controller: controller),
       ],
     );
   }
+}
+
+class _StateFilterMenu extends StatelessWidget {
+  final SurveyAdminController controller;
+
+  const _StateFilterMenu({required this.controller});
+
+  @override
+  Widget build(BuildContext context) {
+    final availableStates = controller.availableStates;
+    final selectedStates = controller.selectedStates;
+    final selectionLabel = _stateSelectionLabel(
+      selectedStates: selectedStates,
+      availableStates: availableStates,
+    );
+
+    return MenuAnchor(
+      menuChildren: [
+        _StateFilterPanel(
+          availableStates: availableStates,
+          selectedStates: selectedStates,
+          onStateChanged: controller.setStateSelected,
+          onClear: controller.clearStateFilters,
+        ),
+      ],
+      builder: (context, menuController, child) {
+        return InkWell(
+          key: const Key('state-filter-menu'),
+          borderRadius: BorderRadius.circular(4),
+          onTap: availableStates.isEmpty
+              ? null
+              : () {
+                  if (menuController.isOpen) {
+                    menuController.close();
+                  } else {
+                    menuController.open();
+                  }
+                },
+          child: InputDecorator(
+            decoration: const InputDecoration(
+              labelText: 'State',
+              border: OutlineInputBorder(),
+              isDense: true,
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    selectionLabel,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                Icon(
+                  menuController.isOpen
+                      ? Icons.arrow_drop_up
+                      : Icons.arrow_drop_down,
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _StateFilterPanel extends StatefulWidget {
+  final List<String> availableStates;
+  final Set<String> selectedStates;
+  final void Function(String state, bool selected) onStateChanged;
+  final VoidCallback onClear;
+
+  const _StateFilterPanel({
+    required this.availableStates,
+    required this.selectedStates,
+    required this.onStateChanged,
+    required this.onClear,
+  });
+
+  @override
+  State<_StateFilterPanel> createState() => _StateFilterPanelState();
+}
+
+class _StateFilterPanelState extends State<_StateFilterPanel> {
+  late final Set<String> _selectedStates;
+
+  @override
+  void initState() {
+    super.initState();
+    _selectedStates = {...widget.selectedStates};
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 250,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 6),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 6, 16, 4),
+              child: Text(
+                'Filter by state',
+                style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                      fontWeight: FontWeight.w800,
+                    ),
+              ),
+            ),
+            CheckboxListTile(
+              key: const Key('state-filter-all'),
+              dense: true,
+              controlAffinity: ListTileControlAffinity.leading,
+              contentPadding: const EdgeInsets.symmetric(horizontal: 8),
+              title: const Text('All states'),
+              value: _selectedStates.isEmpty,
+              onChanged: (_) {
+                setState(_selectedStates.clear);
+                widget.onClear();
+              },
+            ),
+            const Divider(height: 1),
+            ConstrainedBox(
+              constraints: const BoxConstraints(maxHeight: 320),
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    for (final state in widget.availableStates)
+                      CheckboxListTile(
+                        key: Key('state-filter-$state'),
+                        dense: true,
+                        controlAffinity: ListTileControlAffinity.leading,
+                        contentPadding:
+                            const EdgeInsets.symmetric(horizontal: 8),
+                        title: Text(state),
+                        value: _selectedStates.contains(state),
+                        onChanged: (selected) {
+                          final isSelected = selected ?? false;
+                          setState(() {
+                            if (isSelected) {
+                              _selectedStates.add(state);
+                            } else {
+                              _selectedStates.remove(state);
+                            }
+                          });
+                          widget.onStateChanged(state, isSelected);
+                        },
+                      ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _StoreSortMenu extends StatelessWidget {
+  final SurveyAdminController controller;
+
+  const _StoreSortMenu({required this.controller});
+
+  @override
+  Widget build(BuildContext context) {
+    return MenuAnchor(
+      menuChildren: [
+        _StoreSortPanel(controller: controller),
+      ],
+      builder: (context, menuController, child) {
+        return OutlinedButton.icon(
+          key: const Key('store-sort-menu'),
+          onPressed: controller.isBusy
+              ? null
+              : () {
+                  if (menuController.isOpen) {
+                    menuController.close();
+                  } else {
+                    menuController.open();
+                  }
+                },
+          icon: const Icon(Icons.sort, size: 18),
+          label: const Text('Sort'),
+        );
+      },
+    );
+  }
+}
+
+class _StoreSortPanel extends StatefulWidget {
+  final SurveyAdminController controller;
+
+  const _StoreSortPanel({required this.controller});
+
+  @override
+  State<_StoreSortPanel> createState() => _StoreSortPanelState();
+}
+
+class _StoreSortPanelState extends State<_StoreSortPanel> {
+  late StoreSortField _field;
+  late bool _ascending;
+
+  @override
+  void initState() {
+    super.initState();
+    _field = widget.controller.storeSortField;
+    _ascending = widget.controller.sortAscending;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 250,
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(
+              'Sort stores',
+              style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                    fontWeight: FontWeight.w800,
+                  ),
+            ),
+            const SizedBox(height: 12),
+            DropdownButtonFormField<StoreSortField>(
+              key: const Key('store-sort-field'),
+              value: _field,
+              isExpanded: true,
+              decoration: const InputDecoration(
+                labelText: 'Sort by',
+                border: OutlineInputBorder(),
+                isDense: true,
+              ),
+              items: const [
+                DropdownMenuItem(
+                  value: StoreSortField.storeNumber,
+                  child: Text('Store Number'),
+                ),
+                DropdownMenuItem(
+                  value: StoreSortField.state,
+                  child: Text('State'),
+                ),
+                DropdownMenuItem(
+                  value: StoreSortField.dateCompleted,
+                  child: Text('Date Completed'),
+                ),
+              ],
+              onChanged: (field) {
+                if (field == null) {
+                  return;
+                }
+                setState(() => _field = field);
+                widget.controller.setStoreSortField(field);
+              },
+            ),
+            const SizedBox(height: 10),
+            OutlinedButton.icon(
+              key: const Key('store-sort-direction'),
+              onPressed: () {
+                setState(() => _ascending = !_ascending);
+                widget.controller.toggleStoreSortDirection();
+              },
+              icon: Icon(
+                _ascending ? Icons.arrow_upward : Icons.arrow_downward,
+                size: 18,
+              ),
+              label: Text(_ascending ? 'A–Z' : 'Z–A'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+String _stateSelectionLabel({
+  required Set<String> selectedStates,
+  required List<String> availableStates,
+}) {
+  if (selectedStates.isEmpty ||
+      selectedStates.length == availableStates.length) {
+    return 'All states';
+  }
+  final sorted = selectedStates.toList()..sort();
+  return sorted.length <= 3 ? sorted.join(', ') : '${sorted.length} states';
 }
 
 class _StoreListTile extends StatelessWidget {

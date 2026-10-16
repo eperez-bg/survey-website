@@ -82,6 +82,7 @@ class SurveyVersionMetadata {
     return StorageSurveyVersion(
       objectPath: objectPath,
       updatedAt: uploadedAt,
+      surveyUpdatedAt: surveyUpdatedAt,
     );
   }
 

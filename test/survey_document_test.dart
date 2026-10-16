@@ -102,6 +102,29 @@ void main() {
       isA<CanopyDistanceEndpointModel>(),
     );
   });
+
+  test('exposes store address and PIC contact metadata', () {
+    final source = _pairedSurvey();
+    source['storeInfo'] = {
+      'storeNumber': '2255',
+      'stateProvince': 'IL',
+      'city': 'West Jefferson',
+      'shippingAddress': '123 Garden Center Way',
+      'postalCode': '60601',
+      'picName': 'Jordan Sample',
+      'picEmail': 'jordan@example.com',
+      'picPhone': '(312) 555-0188',
+    };
+
+    final survey = SurveyDocument(source);
+
+    expect(survey.stateCode, 'IL');
+    expect(survey.shippingAddress, '123 Garden Center Way');
+    expect(survey.postalCode, '60601');
+    expect(survey.picName, 'Jordan Sample');
+    expect(survey.picEmail, 'jordan@example.com');
+    expect(survey.picPhone, '(312) 555-0188');
+  });
 }
 
 Map<String, dynamic> _pairedSurvey() => {

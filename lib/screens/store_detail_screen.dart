@@ -14,6 +14,7 @@ import '../utils/map_editor_layout_adapter.dart';
 import '../widgets/production_summary_card.dart';
 import '../widgets/survey_deletion_card.dart';
 import '../widgets/survey_map_editor.dart';
+import '../widgets/survey_summary_cards.dart';
 import 'map_edit_screen.dart';
 
 class StoreDetailScreen extends StatelessWidget {
@@ -44,6 +45,10 @@ class StoreDetailScreen extends StatelessWidget {
           sliver: SliverList.list(
             children: [
               _StoreHeader(controller: controller),
+              const SizedBox(height: 12),
+              SurveySummaryCard(survey: survey),
+              const SizedBox(height: 12),
+              StoreSummaryCard(survey: survey),
               const SizedBox(height: 12),
               ProductionSummaryCard(metrics: metrics),
               const SizedBox(height: 12),

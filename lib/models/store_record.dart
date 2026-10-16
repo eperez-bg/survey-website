@@ -8,8 +8,13 @@
 class StorageSurveyVersion {
   final String objectPath;
   final DateTime? updatedAt;
+  final DateTime? surveyUpdatedAt;
 
-  const StorageSurveyVersion({required this.objectPath, this.updatedAt});
+  const StorageSurveyVersion({
+    required this.objectPath,
+    this.updatedAt,
+    this.surveyUpdatedAt,
+  });
 
   String get fileName => objectPath.split('/').last;
 }
@@ -32,6 +37,12 @@ class StoreRecord {
   });
 
   StorageSurveyVersion get latestVersion => versions.first;
+
+  /// The field app updates the root survey timestamp when completing a map.
+  /// Older index rows may not have that value, so their upload time is the
+  /// non-blocking fallback used by the dashboard's Date Completed sort.
+  DateTime? get dateCompletedForSort =>
+      latestVersion.surveyUpdatedAt ?? latestVersion.updatedAt;
 
   // Store number is the stable business identifier even if a corrected city
   // causes a later mobile upload to use a different Storage folder.

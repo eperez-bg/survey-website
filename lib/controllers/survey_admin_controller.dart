@@ -27,6 +27,12 @@ import '../services/survey_validation_service.dart';
 import '../utils/production_metrics_calculator.dart';
 import '../utils/map_editor_layout_adapter.dart';
 
+enum StoreSortField {
+  storeNumber,
+  state,
+  dateCompleted,
+}
+
 class SurveyAdminController extends ChangeNotifier {
   static const String _temporaryDeletePassword = 'a74rFnb';
 
@@ -58,8 +64,10 @@ class SurveyAdminController extends ChangeNotifier {
 
   List<StoreRecord> _stores = const [];
   final Set<String> _selectedStoreKeys = <String>{};
+  final Set<String> _selectedStates = <String>{};
   String _searchQuery = '';
-  String? _stateFilter;
+  StoreSortField _storeSortField = StoreSortField.storeNumber;
+  bool _sortAscending = true;
   bool _isBusy = false;
   String? _statusMessage;
   String? _errorMessage;
@@ -74,7 +82,9 @@ class SurveyAdminController extends ChangeNotifier {
   String? get statusMessage => _statusMessage;
   String? get errorMessage => _errorMessage;
   String get searchQuery => _searchQuery;
-  String? get stateFilter => _stateFilter;
+  Set<String> get selectedStates => Set.unmodifiable(_selectedStates);
+  StoreSortField get storeSortField => _storeSortField;
+  bool get sortAscending => _sortAscending;
   StoreRecord? get currentStore => _currentStore;
   SurveyDocument? get currentSurvey => _currentSurvey;
   String? get currentObjectPath => _currentObjectPath;
@@ -106,15 +116,16 @@ class SurveyAdminController extends ChangeNotifier {
 
   List<StoreRecord> get filteredStores {
     final query = _searchQuery.trim().toLowerCase();
-    return _stores.where((store) {
-      final matchesState =
-          _stateFilter == null || store.stateCode == _stateFilter;
+    final matches = _stores.where((store) {
+      final matchesState = _selectedStates.isEmpty ||
+          _selectedStates.contains(store.stateCode.trim());
       final matchesSearch = query.isEmpty ||
           store.storeNumber.toLowerCase().contains(query) ||
           store.city.toLowerCase().contains(query) ||
           store.stateCode.toLowerCase().contains(query);
       return matchesState && matchesSearch;
     }).toList(growable: false);
+    return _sortedStores(matches);
   }
 
   Future<void> initialize() async {
@@ -184,8 +195,37 @@ class SurveyAdminController extends ChangeNotifier {
     notifyListeners();
   }
 
-  void setStateFilter(String? value) {
-    _stateFilter = value;
+  void setStateSelected(String state, bool selected) {
+    final normalized = state.trim();
+    if (normalized.isEmpty) {
+      return;
+    }
+    if (selected) {
+      _selectedStates.add(normalized);
+    } else {
+      _selectedStates.remove(normalized);
+    }
+    notifyListeners();
+  }
+
+  void clearStateFilters() {
+    if (_selectedStates.isEmpty) {
+      return;
+    }
+    _selectedStates.clear();
+    notifyListeners();
+  }
+
+  void setStoreSortField(StoreSortField field) {
+    if (_storeSortField == field) {
+      return;
+    }
+    _storeSortField = field;
+    notifyListeners();
+  }
+
+  void toggleStoreSortDirection() {
+    _sortAscending = !_sortAscending;
     notifyListeners();
   }
 
@@ -570,21 +610,7 @@ class SurveyAdminController extends ChangeNotifier {
       _setError('No stores are loaded.');
       return;
     }
-    await _exportStoresExcel(_stores, 'all-stores');
-  }
-
-  Future<void> downloadSelectedPdf() async {
-    final selected = _selectedStores();
-    if (selected.isEmpty) {
-      _setError('Select at least one store first.');
-      return;
-    }
-
-    await _runBusy('Building selected-store PDF...', () async {
-      final bundles = await _loadExportBundles(selected);
-      final bytes = await pdfExportService.buildStoresPdf(bundles);
-      await fileDownloadService.savePdf('selected-store-maps', bytes);
-    });
+    await _exportStoresExcel(_sortedStores(_stores), 'all-stores');
   }
 
   void clearMessage() {
@@ -682,7 +708,11 @@ class SurveyAdminController extends ChangeNotifier {
       stateCode: survey.stateCode,
       city: survey.city,
       versions: List.unmodifiable([
-        version,
+        StorageSurveyVersion(
+          objectPath: version.objectPath,
+          updatedAt: version.updatedAt,
+          surveyUpdatedAt: survey.updatedAt,
+        ),
         for (final existingVersion in currentStore.versions)
           if (existingVersion.objectPath != version.objectPath)
             existingVersion,
@@ -695,6 +725,11 @@ class SurveyAdminController extends ChangeNotifier {
 
   void _replaceStoreIndex(List<StoreRecord> stores) {
     _stores = List.unmodifiable(stores);
+    final availableStates = {
+      for (final store in stores)
+        if (store.stateCode.trim().isNotEmpty) store.stateCode.trim(),
+    };
+    _selectedStates.retainWhere(availableStates.contains);
     _selectedStoreKeys.removeWhere(
       (key) => stores.every((store) => store.key != key),
     );
@@ -797,9 +832,67 @@ class SurveyAdminController extends ChangeNotifier {
   }
 
   List<StoreRecord> _selectedStores() {
-    return _stores
+    final selected = _stores
         .where((store) => _selectedStoreKeys.contains(store.key))
         .toList(growable: false);
+    return _sortedStores(selected);
+  }
+
+  List<StoreRecord> _sortedStores(Iterable<StoreRecord> stores) {
+    final sorted = stores.toList(growable: false)..sort(_compareStores);
+    return List.unmodifiable(sorted);
+  }
+
+  int _compareStores(StoreRecord a, StoreRecord b) {
+    if (_storeSortField == StoreSortField.dateCompleted) {
+      final aDate = a.dateCompletedForSort;
+      final bDate = b.dateCompletedForSort;
+      if (aDate == null && bDate != null) {
+        return 1;
+      }
+      if (aDate != null && bDate == null) {
+        return -1;
+      }
+    }
+
+    if (_storeSortField == StoreSortField.state) {
+      final aState = a.stateCode.trim();
+      final bState = b.stateCode.trim();
+      if (aState.isEmpty && bState.isNotEmpty) {
+        return 1;
+      }
+      if (aState.isNotEmpty && bState.isEmpty) {
+        return -1;
+      }
+    }
+
+    final primary = switch (_storeSortField) {
+      StoreSortField.storeNumber => _compareStoreNumbers(a, b),
+      StoreSortField.state => a.stateCode
+          .toLowerCase()
+          .compareTo(b.stateCode.toLowerCase()),
+      StoreSortField.dateCompleted =>
+        (a.dateCompletedForSort ?? DateTime.fromMillisecondsSinceEpoch(0))
+            .compareTo(
+          b.dateCompletedForSort ?? DateTime.fromMillisecondsSinceEpoch(0),
+        ),
+    };
+    final result = primary == 0 ? _compareStoreNumbers(a, b) : primary;
+    return _sortAscending ? result : -result;
+  }
+
+  int _compareStoreNumbers(StoreRecord a, StoreRecord b) {
+    final aNumber = int.tryParse(a.storeNumber);
+    final bNumber = int.tryParse(b.storeNumber);
+    if (aNumber != null && bNumber != null) {
+      final numeric = aNumber.compareTo(bNumber);
+      if (numeric != 0) {
+        return numeric;
+      }
+    }
+    return a.storeNumber.toLowerCase().compareTo(
+          b.storeNumber.toLowerCase(),
+        );
   }
 
   Future<void> _runBusy(String message, Future<void> Function() action) async {

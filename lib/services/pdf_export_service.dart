@@ -2,7 +2,8 @@
 //
 // Responsibility:
 // Builds fixed-layout PDFs from the same survey map painter used by the website.
-// One-store and selected-store exports share the same page builder.
+// PDF generation is intentionally limited to one store at a time so rendering
+// many large map images cannot freeze the admin page.
 
 import 'dart:typed_data';
 
@@ -11,7 +12,6 @@ import 'package:pdf/widgets.dart' as pw;
 
 import '../models/production_metrics.dart';
 import '../models/survey_document.dart';
-import '../models/survey_export_bundle.dart';
 import 'map_image_service.dart';
 
 class PdfExportService {
@@ -24,80 +24,66 @@ class PdfExportService {
     required ProductionMetrics metrics,
     required String objectPath,
   }) async {
-    return buildStoresPdf([
-      SurveyExportBundle(
-        objectPath: objectPath,
-        survey: survey,
-        metrics: metrics,
-      ),
-    ]);
-  }
-
-  Future<Uint8List> buildStoresPdf(List<SurveyExportBundle> bundles) async {
     final document = pw.Document();
+    final mapBytes = await mapImageService.renderPng(survey);
+    final image = pw.MemoryImage(mapBytes);
 
-    for (final bundle in bundles) {
-      final survey = bundle.survey;
-      final mapBytes = await mapImageService.renderPng(survey);
-      final image = pw.MemoryImage(mapBytes);
-
-      document.addPage(
-        pw.Page(
-          pageFormat: PdfPageFormat.letter.landscape,
-          margin: const pw.EdgeInsets.all(24),
-          build: (context) {
-            return pw.Column(
-              crossAxisAlignment: pw.CrossAxisAlignment.start,
-              children: [
-                pw.Text(
-                  'Store ${survey.storeNumber} - ${survey.city}, ${survey.stateCode}',
-                  style: pw.TextStyle(
-                    fontSize: 18,
-                    fontWeight: pw.FontWeight.bold,
+    document.addPage(
+      pw.Page(
+        pageFormat: PdfPageFormat.letter.landscape,
+        margin: const pw.EdgeInsets.all(24),
+        build: (context) {
+          return pw.Column(
+            crossAxisAlignment: pw.CrossAxisAlignment.start,
+            children: [
+              pw.Text(
+                'Store ${survey.storeNumber} - ${survey.city}, ${survey.stateCode}',
+                style: pw.TextStyle(
+                  fontSize: 18,
+                  fontWeight: pw.FontWeight.bold,
+                ),
+              ),
+              pw.SizedBox(height: 4),
+              pw.Text(
+                'Survey ${survey.surveyId} | schema ${survey.schemaVersion} | $objectPath',
+                style: const pw.TextStyle(fontSize: 8),
+              ),
+              pw.SizedBox(height: 8),
+              pw.Row(
+                children: [
+                  _metric('Tables', metrics.tableCount),
+                  _metric(
+                    'Under canopy',
+                    metrics.tableCountUnderCanopy,
                   ),
-                ),
-                pw.SizedBox(height: 4),
-                pw.Text(
-                  'Survey ${survey.surveyId} | schema ${survey.schemaVersion} | ${bundle.objectPath}',
-                  style: const pw.TextStyle(fontSize: 8),
-                ),
-                pw.SizedBox(height: 8),
-                pw.Row(
-                  children: [
-                    _metric('Tables', bundle.metrics.tableCount),
-                    _metric(
-                      'Under canopy',
-                      bundle.metrics.tableCountUnderCanopy,
-                    ),
-                    _metric(
-                      '46-in. ramps',
-                      bundle.metrics.rampCountAt46Inches,
-                    ),
-                    _metric('Spigots', bundle.metrics.spigotCount),
-                    _metric(
-                      'Average PSI',
-                      _optionalNumber(bundle.metrics.averagePsi),
-                    ),
-                    _metric('Zones', bundle.metrics.zoneCount),
-                  ],
-                ),
-                pw.SizedBox(height: 10),
-                pw.Expanded(
-                  child: pw.Container(
-                    alignment: pw.Alignment.center,
-                    decoration: pw.BoxDecoration(
-                      border: pw.Border.all(color: PdfColors.grey400),
-                    ),
-                    padding: const pw.EdgeInsets.all(6),
-                    child: pw.Image(image, fit: pw.BoxFit.contain),
+                  _metric(
+                    '46-in. ramps',
+                    metrics.rampCountAt46Inches,
                   ),
+                  _metric('Spigots', metrics.spigotCount),
+                  _metric(
+                    'Average PSI',
+                    _optionalNumber(metrics.averagePsi),
+                  ),
+                  _metric('Zones', metrics.zoneCount),
+                ],
+              ),
+              pw.SizedBox(height: 10),
+              pw.Expanded(
+                child: pw.Container(
+                  alignment: pw.Alignment.center,
+                  decoration: pw.BoxDecoration(
+                    border: pw.Border.all(color: PdfColors.grey400),
+                  ),
+                  padding: const pw.EdgeInsets.all(6),
+                  child: pw.Image(image, fit: pw.BoxFit.contain),
                 ),
-              ],
-            );
-          },
-        ),
-      );
-    }
+              ),
+            ],
+          );
+        },
+      ),
+    );
 
     return document.save();
   }
